@@ -4,6 +4,7 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import logo from "../logo.png";
 import {
+  BUSINESS_ADDRESS,
   CONTACT_PHONE_DISPLAY,
   TEL_HREF,
   WHATSAPP_URL,
@@ -126,7 +127,11 @@ export default function Footer() {
 
             <div>
               <h4 className="text-lg font-semibold text-white">Contact</h4>
-              <p className="mt-3 text-base text-slate-200">
+              <p className="mt-3 text-base leading-relaxed text-slate-200">
+                <span className="font-medium text-white">Address:</span>{" "}
+                {BUSINESS_ADDRESS}
+              </p>
+              <p className="mt-2 text-base text-slate-200">
                 Email: yourdreamcars1806@gmail.com
               </p>
               <div className="mt-2 flex flex-col gap-2 text-base text-slate-200">

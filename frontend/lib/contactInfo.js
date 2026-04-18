@@ -1,4 +1,7 @@
 /** Business contact — single source for display, tel:, and WhatsApp links. */
+export const BUSINESS_ADDRESS =
+  "Clover Hills Plaza, NIBM, Pune";
+
 export const CONTACT_PHONE_DISPLAY = "+91 87664 03074";
 export const CONTACT_PHONE_E164 = "918766403074";
 
