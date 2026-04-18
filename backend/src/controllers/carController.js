@@ -303,11 +303,29 @@ const isTrustedCloudinaryImageUrl = (imageUrl) => {
     const u = new URL(imageUrl.trim());
     if (u.protocol !== "https:") return false;
     if (u.hostname !== "res.cloudinary.com") return false;
-    return u.pathname.includes(`/${cloud}/`);
+    const pathLower = u.pathname.toLowerCase();
+    const cloudLower = cloud.toLowerCase();
+    return pathLower.includes(`/${cloudLower}/`);
   } catch {
     return false;
   }
 };
+
+/** Browser may send Vercel Blob URL after server-side upload (persistUploadedFile). */
+const isTrustedVercelBlobUrl = (imageUrl) => {
+  if (!imageUrl || typeof imageUrl !== "string") return false;
+  try {
+    const u = new URL(imageUrl.trim());
+    if (u.protocol !== "https:") return false;
+    if (!u.hostname.endsWith(".blob.vercel-storage.com")) return false;
+    return u.pathname.includes("/car-sells/");
+  } catch {
+    return false;
+  }
+};
+
+const isTrustedClientImageUrl = (imageUrl) =>
+  isTrustedCloudinaryImageUrl(imageUrl) || isTrustedVercelBlobUrl(imageUrl);
 
 const getValidatedCarData = (payload) => {
   const { title, brand, model, fuelType, year, price, description, ownership } =
@@ -415,7 +433,7 @@ export const createCar = async (req, res, next) => {
         });
       }
     } else if (clientImageUrl) {
-      if (!isTrustedCloudinaryImageUrl(clientImageUrl)) {
+      if (!isTrustedClientImageUrl(clientImageUrl)) {
         return res.status(400).json({
           success: false,
           message:
@@ -480,7 +498,7 @@ export const updateCar = async (req, res, next) => {
         });
       }
     } else if (clientImageUrl) {
-      if (!isTrustedCloudinaryImageUrl(clientImageUrl)) {
+      if (!isTrustedClientImageUrl(clientImageUrl)) {
         return res.status(400).json({
           success: false,
           message:

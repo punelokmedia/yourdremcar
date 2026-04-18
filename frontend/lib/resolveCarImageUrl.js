@@ -21,19 +21,25 @@ function effectiveApiBase(apiUrl) {
 }
 
 /**
- * Origin used to turn localhost/relative upload paths into absolute URLs on deploy.
- * - Full NEXT_PUBLIC_API_URL → backend origin
- * - Same-origin proxy (/api + rewrites): use NEXT_PUBLIC_SITE_ORIGIN or browser origin
+ * Where /uploads/* files are reachable in production.
+ * Order matters when NEXT_PUBLIC_API_URL is `/api` (no origin in the string) — SSR needs env.
  */
-function getImagePublicOrigin(apiUrl) {
-  const base = effectiveApiBase(apiUrl);
-  const fromApi = getApiOrigin(base);
+function getUploadsBaseOrigin(apiUrl) {
+  const fromEnv = (key) =>
+    typeof process !== "undefined"
+      ? process.env[key]?.trim()?.replace(/\/$/, "") || ""
+      : "";
+
+  const explicit = fromEnv("NEXT_PUBLIC_UPLOADS_ORIGIN");
+  if (explicit) return explicit;
+
+  const backend = fromEnv("NEXT_PUBLIC_BACKEND_ORIGIN");
+  if (backend) return backend;
+
+  const fromApi = getApiOrigin(effectiveApiBase(apiUrl));
   if (fromApi) return fromApi;
 
-  const site =
-    typeof process !== "undefined"
-      ? process.env.NEXT_PUBLIC_SITE_ORIGIN?.trim()?.replace(/\/$/, "")
-      : "";
+  const site = fromEnv("NEXT_PUBLIC_SITE_ORIGIN");
   if (site) return site;
 
   if (typeof window !== "undefined") {
@@ -45,11 +51,11 @@ function getImagePublicOrigin(apiUrl) {
 
 /**
  * Maps localhost / relative upload URLs to a working HTTPS URL on production.
- * Leaves Cloudinary and other absolute URLs unchanged.
+ * Leaves Cloudinary, Vercel Blob, and other absolute URLs unchanged.
  */
 export function resolveCarImageUrl(imageUrl, apiUrl) {
   if (!imageUrl || typeof imageUrl !== "string") return "";
-  const publicOrigin = getImagePublicOrigin(apiUrl);
+  const uploadsBase = getUploadsBaseOrigin(apiUrl);
 
   let trim = imageUrl.trim().replace(/\u00a0/g, "");
   if (!trim) return "";
@@ -72,16 +78,16 @@ export function resolveCarImageUrl(imageUrl, apiUrl) {
       return `https://${u.host}${u.pathname}${u.search}${u.hash}`;
     }
     if (h === "localhost" || h === "127.0.0.1") {
-      if (publicOrigin) return `${publicOrigin}${u.pathname}${u.search}${u.hash}`;
+      if (uploadsBase) return `${uploadsBase}${u.pathname}${u.search}${u.hash}`;
       return `${u.pathname}${u.search}${u.hash}`;
     }
     return trim;
   } catch {
     if (trim.startsWith("/uploads/")) {
-      return publicOrigin ? `${publicOrigin}${trim}` : trim;
+      return uploadsBase ? `${uploadsBase}${trim}` : trim;
     }
-    if (/^car-\d+-[a-z0-9]+\.(png|jpe?g|webp)$/i.test(trim) && publicOrigin) {
-      return `${publicOrigin}/uploads/${trim}`;
+    if (/^car-\d+-[a-z0-9]+\.(png|jpe?g|webp)$/i.test(trim) && uploadsBase) {
+      return `${uploadsBase}/uploads/${trim}`;
     }
     return trim;
   }
