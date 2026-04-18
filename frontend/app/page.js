@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { resolveCarImageUrl } from "../lib/resolveCarImageUrl";
-import { getApiUrl } from "../lib/getApiUrl";
+import { getApiUrl, MISSING_NEXT_PUBLIC_API_URL } from "../lib/getApiUrl";
 
 const API_URL = getApiUrl();
 const galleryFilters = ["All", "Petrol", "CNG"];
@@ -117,6 +117,10 @@ export default function HomePage() {
       if (showLoading) setCarsLoading(true);
       setCarsError("");
       try {
+        if (!API_URL) {
+          if (!cancelled) setCarsError(MISSING_NEXT_PUBLIC_API_URL);
+          return;
+        }
         const response = await fetch(`${API_URL}/cars`, {
           cache: "no-store",
           headers: { Accept: "application/json" },
@@ -177,6 +181,10 @@ export default function HomePage() {
     setStatusMessage("");
 
     try {
+      if (!API_URL) {
+        setStatusMessage(MISSING_NEXT_PUBLIC_API_URL);
+        return;
+      }
       const res = await fetch(`${API_URL}/buy-requests`, {
         method: "POST",
         headers: {

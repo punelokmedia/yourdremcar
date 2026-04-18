@@ -7,7 +7,7 @@ export default async function CarDetailsPage({ searchParams }) {
   const carId = params?.id;
   let carFromApi = null;
 
-  if (carId) {
+  if (carId && API_URL) {
     try {
       const response = await fetch(`${API_URL}/cars`, { cache: "no-store" });
       const data = await response.json();

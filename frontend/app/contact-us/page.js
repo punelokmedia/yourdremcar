@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { getApiUrl } from "../../lib/getApiUrl";
+import { getApiUrl, MISSING_NEXT_PUBLIC_API_URL } from "../../lib/getApiUrl";
 
 const API_URL = getApiUrl();
 
@@ -72,6 +72,10 @@ export default function ContactUsPage() {
     setStatusMessage("");
 
     try {
+      if (!API_URL) {
+        setStatusMessage(MISSING_NEXT_PUBLIC_API_URL);
+        return;
+      }
       const response = await fetch(`${API_URL}/contact-queries`, {
         method: "POST",
         headers: {

@@ -1,11 +1,11 @@
-const DEFAULT_API_URL =
-  process.env.NODE_ENV === "development" ? "http://localhost:5000/api" : "";
+const DEFAULT_DEV_API = "http://localhost:5000/api";
 
 function getApiOrigin(apiUrl) {
-  const raw = (apiUrl || DEFAULT_API_URL).trim();
-  if (!raw) return "";
+  const raw = (apiUrl || "").trim();
+  // Relative bases (e.g. "/api") cannot produce a real origin — would break rewriting.
+  if (!raw || raw.startsWith("/")) return "";
   try {
-    const u = new URL(raw.includes("://") ? raw : `http://${raw}`);
+    const u = new URL(raw.includes("://") ? raw : `https://${raw}`);
     return u.origin;
   } catch {
     return "";
@@ -21,7 +21,10 @@ export function resolveCarImageUrl(imageUrl, apiUrl) {
   const resolvedApi =
     apiUrl ??
     (typeof process !== "undefined" ? process.env.NEXT_PUBLIC_API_URL : undefined);
-  const origin = getApiOrigin(resolvedApi);
+  const effectiveBase =
+    (resolvedApi && String(resolvedApi).trim()) ||
+    (process.env.NODE_ENV === "development" ? DEFAULT_DEV_API : "");
+  const origin = getApiOrigin(effectiveBase);
   const trim = imageUrl.trim();
   if (!trim) return "";
 
@@ -29,7 +32,6 @@ export function resolveCarImageUrl(imageUrl, apiUrl) {
     const u = new URL(trim);
     const h = u.hostname.toLowerCase();
     if (u.protocol === "http:" && h !== "localhost" && h !== "127.0.0.1") {
-      // Force HTTPS in production to avoid browser "block/allow insecure content".
       return `https://${u.host}${u.pathname}${u.search}${u.hash}`;
     }
     if (h === "localhost" || h === "127.0.0.1") {

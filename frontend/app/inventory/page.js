@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { resolveCarImageUrl } from "../../lib/resolveCarImageUrl";
-import { getApiUrl } from "../../lib/getApiUrl";
+import { getApiUrl, MISSING_NEXT_PUBLIC_API_URL } from "../../lib/getApiUrl";
 
 const API_URL = getApiUrl();
 const filters = ["All", "Petrol", "CNG"];
@@ -50,6 +50,10 @@ export default function InventoryPage() {
       if (showLoading) setLoadingCars(true);
       setLoadError("");
       try {
+        if (!API_URL) {
+          if (!cancelled) setLoadError(MISSING_NEXT_PUBLIC_API_URL);
+          return;
+        }
         const response = await fetch(`${API_URL}/cars`, {
           cache: "no-store",
           headers: { Accept: "application/json" },

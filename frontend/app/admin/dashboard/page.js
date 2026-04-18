@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { getApiUrl } from "../../../lib/getApiUrl";
+import { getApiUrl, MISSING_NEXT_PUBLIC_API_URL } from "../../../lib/getApiUrl";
 
 const ADMIN_AUTH_KEY = "ydc_admin_logged_in";
 const API_URL = getApiUrl();
@@ -90,6 +90,10 @@ export default function AdminDashboardPage() {
       setDataError("");
 
       try {
+        if (!API_URL) {
+          setDataError(MISSING_NEXT_PUBLIC_API_URL);
+          return;
+        }
         const fetchOpts = {
           cache: "no-store",
           headers: { Accept: "application/json" },
@@ -224,6 +228,10 @@ export default function AdminDashboardPage() {
     setNewCarError("");
 
     try {
+      if (!API_URL) {
+        setNewCarError(MISSING_NEXT_PUBLIC_API_URL);
+        return;
+      }
       const formData = new FormData();
       formData.append("title", newCarForm.title);
       formData.append("brand", newCarForm.brand);
@@ -303,6 +311,10 @@ export default function AdminDashboardPage() {
     setNewCarError("");
 
     try {
+      if (!API_URL) {
+        setNewCarError(MISSING_NEXT_PUBLIC_API_URL);
+        return;
+      }
       const response = await fetch(`${API_URL}/cars/${carId}`, {
         method: "DELETE",
       });
@@ -334,6 +346,10 @@ export default function AdminDashboardPage() {
     setDataError("");
 
     try {
+      if (!API_URL) {
+        setDataError(MISSING_NEXT_PUBLIC_API_URL);
+        return;
+      }
       const response = await fetch(`${API_URL}/contact-queries/${queryId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
