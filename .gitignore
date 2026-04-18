@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Next.js
+frontend/.next/
+frontend/out/
+
+# Uploads (local dev)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Logs & OS
+*.log
+.DS_Store
+Thumbs.db
+
+# Vercel
+.vercel
+
+# IDE
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+html,
+body {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+body {
+  background-color: #ffffff;
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+input,
+textarea {
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
+input:focus,
+textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(100, 116, 139, 0.35);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #64748b;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.slider-scroll {
+  scroll-behavior: smooth;
+}
