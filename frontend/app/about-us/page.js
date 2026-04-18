@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { motion } from "framer-motion";
 
 const pillars = [
@@ -109,6 +110,39 @@ export default function AboutUsPage() {
                   className="h-36 w-full rounded-2xl object-cover"
                 />
               </div>
+            </div>
+          </div>
+        </div>
+      </motion.section>
+
+      <motion.section
+        {...fadeUp}
+        className="border-b border-slate-200 bg-gradient-to-b from-slate-50/80 to-white"
+      >
+        <div className="mx-auto max-w-6xl px-4 py-14 md:py-16">
+          <div className="flex flex-col items-center gap-10 md:flex-row md:items-center md:gap-12 lg:gap-14">
+            <div className="relative aspect-[4/5] w-full max-w-[min(98vw,520px)] shrink-0 overflow-hidden rounded-2xl shadow-2xl ring-1 ring-slate-200/90 sm:max-w-[580px] md:max-w-[min(680px,58vw)] lg:max-w-[720px]">
+              <Image
+                src="/akshay-c-pardhan.png"
+                alt="Professional portrait of Akshay C Pardhan"
+                fill
+                className="object-cover object-[center_18%]"
+                sizes="(max-width: 640px) min(98vw, 520px), (max-width: 1024px) 680px, 720px"
+                priority
+              />
+            </div>
+            <div className="max-w-xl text-center md:text-left">
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-700">
+                Leadership
+              </p>
+              <h2 className="mt-3 text-4xl font-extrabold uppercase leading-[1.1] tracking-[0.06em] text-slate-900 sm:text-5xl md:text-6xl">
+                Akshay C Pardhan
+              </h2>
+              <p className="mt-4 text-base leading-relaxed text-slate-600 md:text-lg">
+                Leading Your Dream Cars with a focus on trust, transparency, and a
+                premium experience for every buyer. Our mission is to make finding
+                and owning the right used car simple, confident, and stress-free.
+              </p>
             </div>
           </div>
         </div>

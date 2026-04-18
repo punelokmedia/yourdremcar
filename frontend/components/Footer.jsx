@@ -3,6 +3,11 @@
 import Image from "next/image";
 import { motion } from "framer-motion";
 import logo from "../logo.png";
+import {
+  CONTACT_PHONE_DISPLAY,
+  TEL_HREF,
+  WHATSAPP_URL,
+} from "../lib/contactInfo";
 
 export default function Footer() {
   return (
@@ -124,7 +129,22 @@ export default function Footer() {
               <p className="mt-3 text-base text-slate-200">
                 Email: yourdreamcars1806@gmail.com
               </p>
-              <p className="text-base text-slate-200">Phone: +91 87664 03074</p>
+              <div className="mt-2 flex flex-col gap-2 text-base text-slate-200">
+                <a
+                  href={TEL_HREF}
+                  className="w-fit font-medium text-white underline decoration-white/40 underline-offset-2 transition hover:decoration-white"
+                >
+                  Call: {CONTACT_PHONE_DISPLAY}
+                </a>
+                <a
+                  href={WHATSAPP_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-fit font-medium text-emerald-200 underline decoration-emerald-200/50 underline-offset-2 transition hover:text-white hover:decoration-white"
+                >
+                  WhatsApp
+                </a>
+              </div>
               <p className="mt-2 text-base text-slate-200">Mon - Sat: 9AM to 8PM</p>
             </div>
           </div>

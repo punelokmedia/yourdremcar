@@ -3,6 +3,11 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { getApiUrl, MISSING_NEXT_PUBLIC_API_URL } from "../../lib/getApiUrl";
+import {
+  CONTACT_PHONE_DISPLAY,
+  TEL_HREF,
+  WHATSAPP_URL,
+} from "../../lib/contactInfo";
 
 const API_URL = getApiUrl();
 
@@ -14,8 +19,9 @@ const channels = [
   },
   {
     title: "Phone Support",
-    detail: "+91 87664 03074",
+    detail: CONTACT_PHONE_DISPLAY,
     note: "Mon - Sat, 9:00 AM to 8:00 PM",
+    phoneLinks: true,
   },
   {
     title: "Office Address",
@@ -148,7 +154,29 @@ export default function ContactUsPage() {
               transition={{ duration: 0.2 }}
             >
               <h3 className="text-lg font-semibold text-slate-900">{channel.title}</h3>
-              <p className="mt-2 text-sm font-medium text-slate-800">{channel.detail}</p>
+              {channel.phoneLinks ? (
+                <div className="mt-2 space-y-2 text-sm font-medium text-slate-800">
+                  <p>{channel.detail}</p>
+                  <div className="flex flex-wrap gap-3">
+                    <a
+                      href={TEL_HREF}
+                      className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-slate-900 transition hover:bg-slate-100"
+                    >
+                      Call
+                    </a>
+                    <a
+                      href={WHATSAPP_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-900 transition hover:bg-emerald-100"
+                    >
+                      WhatsApp
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                <p className="mt-2 text-sm font-medium text-slate-800">{channel.detail}</p>
+              )}
               <p className="mt-1 text-sm text-slate-600">{channel.note}</p>
             </motion.article>
           ))}

@@ -4,6 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { resolveCarImageUrl } from "../lib/resolveCarImageUrl";
 import { getApiUrl, MISSING_NEXT_PUBLIC_API_URL } from "../lib/getApiUrl";
+import {
+  CONTACT_PHONE_DISPLAY,
+  TEL_HREF,
+  WHATSAPP_URL,
+} from "../lib/contactInfo";
 
 const galleryFilters = ["All", "Petrol", "CNG"];
 const formatPrice = (value) => {
@@ -43,13 +48,6 @@ const buildCarDetailsUrl = (car) => {
   });
   return `/car-details?${params.toString()}`;
 };
-
-const CONTACT_PHONE_DISPLAY = "+91 87664 03074";
-const CONTACT_PHONE_E164 = "918766403074";
-const WHATSAPP_URL = `https://wa.me/${CONTACT_PHONE_E164}?text=${encodeURIComponent(
-  "Hi, I would like to know more about Your Dreams Cars."
-)}`;
-const TEL_HREF = `tel:+${CONTACT_PHONE_E164}`;
 
 function WhatsAppGlyph({ className }) {
   return (
