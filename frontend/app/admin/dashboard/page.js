@@ -70,6 +70,7 @@ export default function AdminDashboardPage() {
   const [loadingData, setLoadingData] = useState(false);
   const [dataError, setDataError] = useState("");
   const [updatingStatusId, setUpdatingStatusId] = useState("");
+  const [storageHealth, setStorageHealth] = useState(null);
   const currentDate = new Intl.DateTimeFormat("en-US", {
     day: "2-digit",
     month: "short",
@@ -85,6 +86,27 @@ export default function AdminDashboardPage() {
     }
     setIsReady(true);
   }, [router]);
+
+  useEffect(() => {
+    if (!isReady || !API_URL) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`${API_URL}/health/storage`, {
+          cache: "no-store",
+          headers: { Accept: "application/json" },
+        });
+        if (!r.ok || cancelled) return;
+        const j = await r.json();
+        if (!cancelled) setStorageHealth(j);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isReady]);
 
   useEffect(() => {
     if (!isReady) return;
@@ -234,6 +256,18 @@ export default function AdminDashboardPage() {
     try {
       if (!API_URL) {
         setNewCarError(MISSING_NEXT_PUBLIC_API_URL);
+        return;
+      }
+      if (
+        newCarForm.image &&
+        !isDirectCloudinaryUploadEnabled() &&
+        storageHealth?.vercel &&
+        !storageHealth.blob &&
+        !storageHealth.cloudinaryAuthOk
+      ) {
+        setNewCarError(
+          "Image upload on Vercel needs one of: (1) Backend: BLOB_READ_WRITE_TOKEN (Vercel → Storage → Blob → redeploy API), (2) This frontend: NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME + NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET (unsigned preset), or (3) Fix backend CLOUDINARY_* — check GET …/api/health/cloudinary on your API."
+        );
         return;
       }
       const formData = new FormData();
@@ -848,6 +882,41 @@ export default function AdminDashboardPage() {
                     <p className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
                       {newCarError}
                     </p>
+                  ) : null}
+
+                  {storageHealth?.vercel &&
+                  !isDirectCloudinaryUploadEnabled() &&
+                  !storageHealth.blob &&
+                  !storageHealth.cloudinaryAuthOk ? (
+                    <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                      <p className="font-semibold">Image uploads are not configured for production</p>
+                      <p className="mt-2 leading-relaxed">
+                        Add <code className="rounded bg-amber-100/80 px-1">BLOB_READ_WRITE_TOKEN</code>{" "}
+                        to your <strong>backend</strong> Vercel project (Storage → Blob),{" "}
+                        <em>or</em> add{" "}
+                        <code className="rounded bg-amber-100/80 px-1">
+                          NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
+                        </code>{" "}
+                        +{" "}
+                        <code className="rounded bg-amber-100/80 px-1">
+                          NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET
+                        </code>{" "}
+                        to this <strong>frontend</strong> project,{" "}
+                        <em>or</em> fix Cloudinary API keys on the backend and redeploy.
+                      </p>
+                    </div>
+                  ) : null}
+
+                  {storageHealth?.cloudinaryConfigured && !storageHealth.cloudinaryAuthOk ? (
+                    <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+                      <p className="font-semibold">Backend Cloudinary auth failed</p>
+                      <p className="mt-1">
+                        Remove conflicting <code className="rounded bg-rose-100 px-1">CLOUDINARY_URL</code>{" "}
+                        in Vercel if you use the three separate vars, and match keys to Cloudinary →
+                        Settings → API Keys. Test:{" "}
+                        <code className="rounded bg-rose-100 px-1">GET /api/health/cloudinary</code>
+                      </p>
+                    </div>
                   ) : null}
 
                   <form onSubmit={handleCreateCar} className="space-y-6">

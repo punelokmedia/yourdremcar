@@ -57,6 +57,29 @@ app.get("/", (_req, res) => {
   res.json({ success: true, message: "Car Sells API running" });
 });
 
+/**
+ * What the admin UI needs to choose browser vs server upload (no secrets exposed).
+ */
+app.get("/api/health/storage", async (_req, res) => {
+  const blob = Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim());
+  let cloudinaryAuthOk = false;
+  if (isCloudinaryConfigured()) {
+    try {
+      await cloudinary.api.ping();
+      cloudinaryAuthOk = true;
+    } catch {
+      cloudinaryAuthOk = false;
+    }
+  }
+  return res.status(200).json({
+    success: true,
+    vercel: Boolean(process.env.VERCEL),
+    blob,
+    cloudinaryConfigured: isCloudinaryConfigured(),
+    cloudinaryAuthOk,
+  });
+});
+
 /** Debug Cloudinary credentials on the deployed server (no upload). */
 app.get("/api/health/cloudinary", async (_req, res) => {
   if (!isCloudinaryConfigured()) {
