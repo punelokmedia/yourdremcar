@@ -34,7 +34,7 @@ const isServerlessRuntime = () =>
   );
 
 const SERVERLESS_UPLOAD_MESSAGE =
-  "Image upload failed. On Vercel: add BLOB_READ_WRITE_TOKEN (Vercel → Storage → Blob), or fix Cloudinary keys (CLOUDINARY_*). Local disk is not available on serverless.";
+  "Image upload failed. On Vercel (backend project): add BLOB_READ_WRITE_TOKEN — Dashboard → Storage → Blob → copy token into Environment Variables, then redeploy. Or fix CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET (remove conflicting CLOUDINARY_URL if present). Local disk is not available on serverless.";
 
 const saveImageLocally = async (fileBuffer, originalName = "car-image.jpg") => {
   const uploadsDir = path.join(process.cwd(), "uploads");
@@ -99,36 +99,63 @@ const deleteStoredImage = async (imageUrl, imagePublicId) => {
 };
 
 /**
- * Cloudinary (if configured) → else Vercel Blob (if BLOB_READ_WRITE_TOKEN) → else local disk (non-serverless only).
+ * Serverless (Vercel): Vercel Blob first when BLOB_READ_WRITE_TOKEN is set — one env var, no Cloudinary needed.
+ * Then Cloudinary (if configured). Non-serverless: Cloudinary → Blob → local ./uploads.
  */
 const persistUploadedFile = async (fileBuffer, originalName, req) => {
   let warning = "";
+  let blobAttempted = false;
+
+  const tryBlob = async () => {
+    if (!isBlobConfigured()) return null;
+    blobAttempted = true;
+    try {
+      const url = await uploadBufferToVercelBlob(fileBuffer, originalName);
+      return { imageUrl: url, imagePublicId: "" };
+    } catch (blobErr) {
+      console.error("Vercel Blob upload error:", blobErr);
+      warning += `Vercel Blob failed: ${blobErr.message}. `;
+      return null;
+    }
+  };
+
+  if (isServerlessRuntime() && isBlobConfigured()) {
+    const blobFirst = await tryBlob();
+    if (blobFirst) {
+      return {
+        imageUrl: blobFirst.imageUrl,
+        imagePublicId: "",
+        warning: undefined,
+      };
+    }
+  }
+
   if (shouldUseCloudinaryUpload()) {
     try {
       const uploaded = await uploadImageToCloudinary(fileBuffer);
       return {
         imageUrl: uploaded.secure_url,
         imagePublicId: uploaded.public_id,
-        warning: "",
+        warning: warning || undefined,
       };
     } catch (uploadError) {
       logCloudinaryFailure(uploadError);
-      warning = "Cloudinary upload failed; trying other storage. ";
+      warning += "Cloudinary upload failed; trying other storage. ";
     }
   }
-  if (isBlobConfigured()) {
-    try {
-      const url = await uploadBufferToVercelBlob(fileBuffer, originalName);
+
+  if (isBlobConfigured() && !blobAttempted) {
+    const blobSecond = await tryBlob();
+    if (blobSecond) {
+      const w = warning.trim();
       return {
-        imageUrl: url,
+        imageUrl: blobSecond.imageUrl,
         imagePublicId: "",
-        warning: warning ? `${warning.trim()} Stored with Vercel Blob.` : undefined,
+        warning: w ? `${w} Stored with Vercel Blob.` : undefined,
       };
-    } catch (blobErr) {
-      console.error("Vercel Blob upload error:", blobErr);
-      warning += `Vercel Blob failed: ${blobErr.message}. `;
     }
   }
+
   if (!isServerlessRuntime()) {
     const localFileName = await saveImageLocally(fileBuffer, originalName);
     const baseUrl = getPublicBaseUrl(req);
@@ -138,9 +165,7 @@ const persistUploadedFile = async (fileBuffer, originalName, req) => {
       warning: warning ? `${warning.trim()} Saved under ./uploads on this machine.` : undefined,
     };
   }
-  throw new Error(
-    `${warning} ${SERVERLESS_UPLOAD_MESSAGE}`
-  );
+  throw new Error(`${warning} ${SERVERLESS_UPLOAD_MESSAGE}`);
 };
 
 /** Public origin for stored image URLs (Vercel: prefer PUBLIC_BASE_URL or VERCEL_URL over internal host). */
