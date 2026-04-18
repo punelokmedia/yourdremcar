@@ -167,6 +167,20 @@ const OWNERSHIP_VALUES = [
   "Multiple Owners",
 ];
 
+/** Accept only URLs from our Cloudinary cloud (browser direct-upload path). */
+const isTrustedCloudinaryImageUrl = (imageUrl) => {
+  const cloud = process.env.CLOUDINARY_CLOUD_NAME?.trim()?.replace(/^["']|["']$/g, "");
+  if (!cloud || !imageUrl || typeof imageUrl !== "string") return false;
+  try {
+    const u = new URL(imageUrl.trim());
+    if (u.protocol !== "https:") return false;
+    if (u.hostname !== "res.cloudinary.com") return false;
+    return u.pathname.includes(`/${cloud}/`);
+  } catch {
+    return false;
+  }
+};
+
 const getValidatedCarData = (payload) => {
   const { title, brand, model, fuelType, year, price, description, ownership } =
     payload;
@@ -251,6 +265,11 @@ export const createCar = async (req, res, next) => {
     const carData = validated.data;
     let uploadWarning = "";
 
+    const clientImageUrl =
+      typeof req.body.imageUrl === "string" ? req.body.imageUrl.trim() : "";
+    const clientPublicId =
+      typeof req.body.imagePublicId === "string" ? req.body.imagePublicId.trim() : "";
+
     if (req.file?.buffer) {
       if (shouldUseCloudinaryUpload()) {
         try {
@@ -290,6 +309,16 @@ export const createCar = async (req, res, next) => {
         const baseUrl = getPublicBaseUrl(req);
         carData.imageUrl = `${baseUrl}/uploads/${localFileName}`;
       }
+    } else if (clientImageUrl) {
+      if (!isTrustedCloudinaryImageUrl(clientImageUrl)) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid image URL. Use browser upload with your Cloudinary cloud name, or upload a file.",
+        });
+      }
+      carData.imageUrl = clientImageUrl;
+      carData.imagePublicId = clientPublicId;
     }
 
     const car = await Car.create(carData);
@@ -320,6 +349,11 @@ export const updateCar = async (req, res, next) => {
 
     const carData = validated.data;
     let uploadWarning = "";
+
+    const clientImageUrl =
+      typeof req.body.imageUrl === "string" ? req.body.imageUrl.trim() : "";
+    const clientPublicId =
+      typeof req.body.imagePublicId === "string" ? req.body.imagePublicId.trim() : "";
 
     if (req.file?.buffer) {
       if (shouldUseCloudinaryUpload()) {
@@ -374,6 +408,25 @@ export const updateCar = async (req, res, next) => {
         const baseUrl = getPublicBaseUrl(req);
         carData.imageUrl = `${baseUrl}/uploads/${localFileName}`;
         carData.imagePublicId = "";
+        await deleteLocalImageIfAny(car.imageUrl);
+      }
+    } else if (clientImageUrl) {
+      if (!isTrustedCloudinaryImageUrl(clientImageUrl)) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid image URL. Use browser upload with your Cloudinary cloud name, or upload a file.",
+        });
+      }
+      carData.imageUrl = clientImageUrl;
+      carData.imagePublicId = clientPublicId;
+      if (car.imagePublicId) {
+        try {
+          await cloudinary.uploader.destroy(car.imagePublicId);
+        } catch (_e) {
+          /* ignore */
+        }
+      } else {
         await deleteLocalImageIfAny(car.imageUrl);
       }
     }

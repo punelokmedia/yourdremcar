@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { getApiUrl, MISSING_NEXT_PUBLIC_API_URL } from "../../../lib/getApiUrl";
+import {
+  isDirectCloudinaryUploadEnabled,
+  uploadCarImageClientSide,
+} from "../../../lib/cloudinaryDirectUpload";
 
 const ADMIN_AUTH_KEY = "ydc_admin_logged_in";
 const API_URL = getApiUrl();
@@ -246,14 +250,41 @@ export default function AdminDashboardPage() {
       }
 
       const isEditing = Boolean(editingCarId);
-      const response = await fetch(
-        isEditing ? `${API_URL}/cars/${editingCarId}` : `${API_URL}/cars`,
-        {
+      const url = isEditing ? `${API_URL}/cars/${editingCarId}` : `${API_URL}/cars`;
+
+      let response;
+      if (
+        newCarForm.image &&
+        isDirectCloudinaryUploadEnabled()
+      ) {
+        const uploaded = await uploadCarImageClientSide(newCarForm.image);
+        response = await fetch(url, {
+          method: isEditing ? "PATCH" : "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          cache: "no-store",
+          body: JSON.stringify({
+            title: newCarForm.title,
+            brand: newCarForm.brand,
+            model: newCarForm.model,
+            fuelType: newCarForm.fuelType,
+            ownership: newCarForm.ownership,
+            year: newCarForm.year,
+            price: newCarForm.price,
+            description: newCarForm.description,
+            imageUrl: uploaded.secure_url,
+            imagePublicId: uploaded.public_id,
+          }),
+        });
+      } else {
+        response = await fetch(url, {
           method: isEditing ? "PATCH" : "POST",
           body: formData,
           cache: "no-store",
-        }
-      );
+        });
+      }
 
       const ct = response.headers.get("content-type") || "";
       let data;

@@ -15,9 +15,18 @@ const upload = multer({
   limits: { fileSize: 4 * 1024 * 1024 },
 });
 
+/** JSON body (browser → Cloudinary direct upload) must not go through multer or body is lost. */
+const multipartImageUpload = (req, res, next) => {
+  const ct = req.headers["content-type"] || "";
+  if (ct.includes("application/json")) {
+    return next();
+  }
+  return upload.single("image")(req, res, next);
+};
+
 router.get("/", getCars);
-router.post("/", upload.single("image"), createCar);
-router.patch("/:id", upload.single("image"), updateCar);
+router.post("/", multipartImageUpload, createCar);
+router.patch("/:id", multipartImageUpload, updateCar);
 router.delete("/:id", deleteCar);
 
 export default router;
