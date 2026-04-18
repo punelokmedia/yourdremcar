@@ -20,7 +20,7 @@ const channels = [
   {
     title: "Phone Support",
     detail: CONTACT_PHONE_DISPLAY,
-    note: "Mon - Sat, 9:00 AM to 8:00 PM",
+    note: "Monday - Sunday, 9:00 AM to 8:00 PM",
     phoneLinks: true,
   },
   {
@@ -322,10 +322,9 @@ export default function ContactUsPage() {
               className="rounded-2xl border border-slate-200 bg-white p-5"
             >
               <h3 className="text-lg font-semibold text-slate-900">Working Hours</h3>
-              <p className="mt-3 text-sm text-slate-600">Monday - Saturday</p>
+              <p className="mt-3 text-sm text-slate-600">Monday - Sunday</p>
               <p className="text-sm font-medium text-slate-800">9:00 AM - 8:00 PM</p>
-              <p className="mt-3 text-sm text-slate-600">Sunday</p>
-              <p className="text-sm font-medium text-slate-800">Emergency email support</p>
+              <p className="mt-3 text-sm text-slate-600">Emergency email support anytime</p>
             </motion.div>
 
             <motion.div

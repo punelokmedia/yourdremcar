@@ -145,7 +145,7 @@ export default function Footer() {
                   WhatsApp
                 </a>
               </div>
-              <p className="mt-2 text-base text-slate-200">Mon - Sat: 9AM to 8PM</p>
+              <p className="mt-2 text-base text-slate-200">Monday - Sunday: 9AM to 8PM</p>
             </div>
           </div>
         </div>
