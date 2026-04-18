@@ -3,7 +3,6 @@ import { v2 as cloudinary } from "cloudinary";
 const normalizeEnv = (value) => {
   if (!value || typeof value !== "string") return "";
   const trimmed = value.trim();
-  // Handles accidental wrapping quotes from copy/paste in env dashboards.
   return trimmed.replace(/^["']|["']$/g, "");
 };
 
@@ -16,19 +15,25 @@ const apiSecret = normalizeEnv(
   process.env.CLOUDINARY_API_SECRET || process.env.API_SECRET
 );
 
-/** All three must be set, or uploads should use local /uploads only. */
+const hasExplicitTriple = Boolean(cloudName && apiKey && apiSecret);
+
+/**
+ * Prefer CLOUDINARY_CLOUD_NAME + KEY + SECRET when all three are set.
+ * If CLOUDINARY_URL is also set with different credentials, using the URL alone causes 401/403.
+ */
 export const isCloudinaryConfigured = () =>
-  Boolean(cloudinaryUrl || (cloudName && apiKey && apiSecret));
+  Boolean(hasExplicitTriple || cloudinaryUrl);
 
 if (isCloudinaryConfigured()) {
-  if (cloudinaryUrl) {
-    cloudinary.config({ cloudinary_url: cloudinaryUrl });
-  } else {
+  if (hasExplicitTriple) {
     cloudinary.config({
       cloud_name: cloudName,
       api_key: apiKey,
       api_secret: apiSecret,
+      secure: true,
     });
+  } else if (cloudinaryUrl) {
+    cloudinary.config({ cloudinary_url: cloudinaryUrl, secure: true });
   }
 }
 

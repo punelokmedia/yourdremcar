@@ -102,12 +102,17 @@ const logCloudinaryFailure = (uploadError) => {
 
 const getCloudinaryFailureClientMessage = (uploadError) => {
   const code = uploadError?.http_code ?? uploadError?.statusCode;
-  const reason =
+  const nested =
+    typeof uploadError?.error === "object" && uploadError.error?.message
+      ? String(uploadError.error.message).trim()
+      : "";
+  const top =
     typeof uploadError?.message === "string" && uploadError.message.trim()
       ? uploadError.message.trim()
-      : "Unknown Cloudinary error";
+      : "";
+  const reason = nested || top || "Unknown Cloudinary error";
   if (code === 401 || code === 403) {
-    return `Cloudinary auth failed (${code}): ${reason}. Check CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET (or CLOUDINARY_URL) in deployed backend environment.`;
+    return `Cloudinary auth failed (${code}): ${reason}. Use API keys from the same Cloudinary product (Console → API Keys). If both CLOUDINARY_URL and CLOUDINARY_* are set, remove the wrong one or keep only the three separate vars.`;
   }
   return `Cloudinary upload failed: ${reason}`;
 };
