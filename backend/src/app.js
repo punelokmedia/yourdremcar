@@ -20,32 +20,30 @@ app.use((req, res, next) => {
   next();
 });
 /**
- * CORS: If FRONTEND_URL is unset, allow any origin (reflect Origin) — fixes Vercel
- * when env was only localhost. Comma-separate multiple origins to lock down:
- * FRONTEND_URL=http://localhost:3000,https://your-app.vercel.app
+ * CORS: default `origin: true` reflects the browser's Origin — works for localhost,
+ * production, and every Vercel preview URL (e.g. *-i22s.vercel.app).
+ * Optional lock-down: set CORS_ALLOWED_ORIGINS=https://a.com,https://b.com
+ * (do not use FRONTEND_URL for CORS — it caused localhost-only headers on Vercel).
  */
-const resolveCorsOrigin = () => {
-  const raw = process.env.FRONTEND_URL?.trim();
-  if (!raw || raw === "*") {
-    return true;
-  }
-  const allowed = raw.split(",").map((s) => s.trim()).filter(Boolean);
-  return (origin, callback) => {
-    if (!origin) {
-      callback(null, true);
-      return;
-    }
-    if (allowed.includes(origin)) {
-      callback(null, true);
-      return;
-    }
-    callback(null, false);
-  };
-};
+const corsOrigin =
+  process.env.CORS_ALLOWED_ORIGINS?.trim()
+    ? (() => {
+        const allowed = process.env.CORS_ALLOWED_ORIGINS.split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        return (origin, callback) => {
+          if (!origin || allowed.includes(origin)) {
+            callback(null, true);
+            return;
+          }
+          callback(null, false);
+        };
+      })()
+    : true;
 
 app.use(
   cors({
-    origin: resolveCorsOrigin(),
+    origin: corsOrigin,
     methods: ["GET", "HEAD", "POST", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Accept", "Authorization"],
   })
