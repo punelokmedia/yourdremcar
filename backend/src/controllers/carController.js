@@ -155,20 +155,51 @@ const getPublicBaseUrl = (req) => {
   return `${proto}://${host}`;
 };
 
-/** DB me purane `http://localhost:5000/uploads/...` ko production par reachable URL me badal kar bhejta hai. */
-const rewriteLocalhostImageUrl = (imageUrl, req) => {
+/**
+ * JSON responses me imageUrl fix:
+ * - `/uploads/...` (relative) → absolute using PUBLIC_BASE_URL (preferred) or request host
+ * - `http://localhost.../uploads/...` → same
+ * - `https://marketing-site.vercel.app/uploads/...` jab file API deploy par hai → PUBLIC_BASE_URL se replace
+ *   (warna browser frontend domain par /uploads maangega = 404 jab tak BACKEND_ORIGIN rewrite na ho)
+ */
+const normalizeImageUrlForResponse = (imageUrl, req) => {
   if (!imageUrl || typeof imageUrl !== "string") return imageUrl;
+  const trimmed = imageUrl.trim();
+  const publicBase = process.env.PUBLIC_BASE_URL?.trim().replace(/\/$/, "") || "";
+
+  if (trimmed.startsWith("/uploads/")) {
+    const origin = publicBase || getPublicBaseUrl(req);
+    return `${origin}${trimmed}`;
+  }
+
   try {
-    const u = new URL(imageUrl);
+    const u = new URL(trimmed);
     const h = u.hostname.toLowerCase();
     if (h === "localhost" || h === "127.0.0.1") {
-      const base = getPublicBaseUrl(req);
-      return `${base}${u.pathname}${u.search}${u.hash}`;
+      const origin = publicBase || getPublicBaseUrl(req);
+      return `${origin}${u.pathname}${u.search}${u.hash}`;
+    }
+    if (
+      publicBase &&
+      u.pathname.startsWith("/uploads/") &&
+      !trimmed.includes("blob.vercel-storage.com")
+    ) {
+      let baseUrl;
+      try {
+        baseUrl = new URL(
+          publicBase.startsWith("http") ? publicBase : `https://${publicBase}`
+        );
+      } catch {
+        return trimmed;
+      }
+      if (u.origin !== baseUrl.origin) {
+        return `${baseUrl.origin}${u.pathname}${u.search}${u.hash}`;
+      }
     }
   } catch {
-    // ignore
+    return trimmed;
   }
-  return imageUrl;
+  return trimmed;
 };
 
 const carForJson = (car, req) => {
@@ -176,7 +207,7 @@ const carForJson = (car, req) => {
   const plain =
     typeof car.toObject === "function" ? car.toObject() : { ...car };
   if (plain.imageUrl) {
-    plain.imageUrl = rewriteLocalhostImageUrl(plain.imageUrl, req);
+    plain.imageUrl = normalizeImageUrlForResponse(plain.imageUrl, req);
   }
   return plain;
 };
