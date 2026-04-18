@@ -235,7 +235,6 @@ export default function HomePage() {
             loading="eager"
             fetchPriority="high"
             decoding="async"
-            referrerPolicy="no-referrer-when-downgrade"
             onError={() => setHeroImageBroken(true)}
             className="absolute inset-0 h-full min-h-full w-full object-cover object-center transition-all duration-700"
           />
@@ -243,7 +242,7 @@ export default function HomePage() {
           <div className="absolute inset-0 flex min-h-full items-center justify-center bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950">
             <p className="max-w-sm px-4 text-center text-sm font-medium text-slate-300">
               {heroImageBroken
-                ? "Image could not be loaded. Re-upload the car photo in admin (use Cloudinary on production)."
+                ? "Image could not be loaded. Re-upload the car in admin, or check API image URLs (Vercel: Blob token or Cloudinary)."
                 : "No image from backend"}
             </p>
           </div>

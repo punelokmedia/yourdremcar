@@ -168,32 +168,39 @@ const persistUploadedFile = async (fileBuffer, originalName, req) => {
   throw new Error(`${warning} ${SERVERLESS_UPLOAD_MESSAGE}`);
 };
 
-/** Public origin for stored image URLs (Vercel: prefer PUBLIC_BASE_URL or VERCEL_URL over internal host). */
-const getPublicBaseUrl = (req) => {
-  const explicit = process.env.PUBLIC_BASE_URL?.trim()?.replace(/\/$/, "");
+/**
+ * Public origin of *this API deployment* (where /uploads and Express live).
+ * Never use X-Forwarded-Host alone — behind a Next.js proxy it is the marketing site, so /uploads URLs
+ * would point at the frontend (404). Prefer PUBLIC_BASE_URL, then VERCEL_URL.
+ */
+const getDeploymentPublicOrigin = () => {
+  const explicit = process.env.PUBLIC_BASE_URL?.trim().replace(/\/$/, "");
   if (explicit) return explicit;
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`;
-  }
-  const host = req.get("x-forwarded-host") || req.get("host");
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return "";
+};
+
+const getPublicBaseUrl = (req) => {
+  const deploy = getDeploymentPublicOrigin();
+  if (deploy) return deploy;
+  const host = req.get("host");
   const proto = req.get("x-forwarded-proto") || req.protocol;
   return `${proto}://${host}`;
 };
 
 /**
  * JSON responses me imageUrl fix:
- * - `/uploads/...` (relative) → absolute using PUBLIC_BASE_URL (preferred) or request host
+ * - `/uploads/...` → absolute using deployment origin (PUBLIC_BASE_URL / VERCEL_URL), not forwarded client host
  * - `http://localhost.../uploads/...` → same
- * - `https://marketing-site.vercel.app/uploads/...` jab file API deploy par hai → PUBLIC_BASE_URL se replace
- *   (warna browser frontend domain par /uploads maangega = 404 jab tak BACKEND_ORIGIN rewrite na ho)
+ * - `https://frontend.vercel.app/uploads/...` (galat host DB me) → deployment origin par rewrite jab PUBLIC_BASE_URL na ho tab bhi VERCEL_URL se
  */
 const normalizeImageUrlForResponse = (imageUrl, req) => {
   if (!imageUrl || typeof imageUrl !== "string") return imageUrl;
   const trimmed = imageUrl.trim();
-  const publicBase = process.env.PUBLIC_BASE_URL?.trim().replace(/\/$/, "") || "";
+  const deploymentOrigin = getDeploymentPublicOrigin();
 
   if (trimmed.startsWith("/uploads/")) {
-    const origin = publicBase || getPublicBaseUrl(req);
+    const origin = deploymentOrigin || getPublicBaseUrl(req);
     return `${origin}${trimmed}`;
   }
 
@@ -201,18 +208,20 @@ const normalizeImageUrlForResponse = (imageUrl, req) => {
     const u = new URL(trimmed);
     const h = u.hostname.toLowerCase();
     if (h === "localhost" || h === "127.0.0.1") {
-      const origin = publicBase || getPublicBaseUrl(req);
+      const origin = deploymentOrigin || getPublicBaseUrl(req);
       return `${origin}${u.pathname}${u.search}${u.hash}`;
     }
     if (
-      publicBase &&
+      deploymentOrigin &&
       u.pathname.startsWith("/uploads/") &&
       !trimmed.includes("blob.vercel-storage.com")
     ) {
       let baseUrl;
       try {
         baseUrl = new URL(
-          publicBase.startsWith("http") ? publicBase : `https://${publicBase}`
+          deploymentOrigin.startsWith("http")
+            ? deploymentOrigin
+            : `https://${deploymentOrigin}`
         );
       } catch {
         return trimmed;
