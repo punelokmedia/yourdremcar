@@ -401,7 +401,7 @@ export default function HomePage() {
                 onClick={() => setIsFormOpen(true)}
                 className="rounded-full bg-white px-6 py-2 text-xs font-semibold text-slate-900 shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:bg-slate-100 sm:px-7 sm:py-2.5 sm:text-sm"
               >
-                Request for Buy
+                Book your test drive
               </button>
               <a
                 href={WHATSAPP_URL}
@@ -750,7 +750,7 @@ export default function HomePage() {
                     }}
                     className="rounded-full border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
                   >
-                    Request Buy
+                    Book your test drive
                   </button>
                   <span className="ml-auto rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700">
                     Verified
@@ -793,18 +793,19 @@ export default function HomePage() {
       <motion.section {...fadeUp} className="mx-auto max-w-6xl px-4 pb-10">
         <div className="rounded-3xl border border-slate-200 bg-gradient-to-r from-slate-900 to-slate-700 px-6 py-8 text-white transition md:px-10 md:py-10">
           <h3 className="text-2xl font-bold md:text-3xl">
-            Ready To Buy Your Dream Car?
+            Ready for a test drive?
           </h3>
           <p className="mt-2 max-w-xl text-slate-200">
             Select your favorite car from the hero and submit a request. Our team will
-            contact you with full details and best price options.
+            contact you to schedule your drive, share full details, and the best price
+            options.
           </p>
           <button
             type="button"
             onClick={() => setIsFormOpen(true)}
             className="mt-5 rounded-full bg-white px-6 py-2.5 text-sm font-semibold text-slate-900 transition hover:-translate-y-0.5 hover:bg-slate-100"
           >
-            Request for Buy
+            Book your test drive
           </button>
         </div>
       </motion.section>
@@ -905,10 +906,10 @@ export default function HomePage() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="text-xl font-semibold text-slate-900">
-                    Request for Buy
+                    Book your test drive
                   </h3>
                   <p className="mt-1 text-sm text-slate-600">
-                    Fill your details and we will contact you shortly.
+                    Fill your details and we will contact you to confirm your test drive.
                   </p>
                 </div>
               </div>

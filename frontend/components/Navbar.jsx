@@ -37,7 +37,7 @@ export default function Navbar() {
           </span>
           <div className="min-w-0 leading-tight">
             <p className="truncate font-black tracking-tight md:tracking-tighter">
-              <span className="bg-gradient-to-r from-slate-900 via-blue-800 to-indigo-600 bg-clip-text text-lg text-transparent md:text-xl lg:text-2xl">
+              <span className="bg-gradient-to-r from-blue-800 via-indigo-600 to-indigo-500 bg-clip-text text-lg text-transparent md:text-xl lg:text-2xl">
                 Your Dream Cars
               </span>
             </p>
