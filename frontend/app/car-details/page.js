@@ -39,6 +39,7 @@ export default async function CarDetailsPage({ searchParams }) {
   const fuelType = carFromApi?.fuelType || params?.fuelType || "N/A";
   const ownership =
     carFromApi?.ownership || params?.ownership || "Single Owner";
+  const availability = carFromApi?.availability || "Available";
   const note =
     carFromApi?.description ||
     params?.note ||
@@ -93,6 +94,21 @@ export default async function CarDetailsPage({ searchParams }) {
                 <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-sm font-medium text-slate-600">
                   {year} · {fuelType}
                 </span>
+                {availability === "Sold" ? (
+                  <span className="inline-flex rounded-full bg-emerald-600 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">
+                    Sold
+                  </span>
+                ) : null}
+                {availability === "Sold out" ? (
+                  <span className="inline-flex rounded-full bg-rose-600 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">
+                    Sold out
+                  </span>
+                ) : null}
+                {availability === "Available" ? (
+                  <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800">
+                    Available
+                  </span>
+                ) : null}
               </div>
             </div>
 

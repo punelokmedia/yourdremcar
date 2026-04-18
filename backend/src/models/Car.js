@@ -45,6 +45,11 @@ const carSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    availability: {
+      type: String,
+      enum: ["Available", "Sold", "Sold out"],
+      default: "Available",
+    },
   },
   { timestamps: true }
 );

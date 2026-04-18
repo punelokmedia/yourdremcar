@@ -7,6 +7,7 @@ import carRoutes from "./routes/carRoutes.js";
 import buyRequestRoutes from "./routes/buyRequestRoutes.js";
 import contactQueryRoutes from "./routes/contactQueryRoutes.js";
 import reviewRoutes from "./routes/reviewRoutes.js";
+import happyClientRoutes from "./routes/happyClientRoutes.js";
 import errorHandler from "./middlewares/errorHandler.js";
 import cloudinary, { isCloudinaryConfigured } from "./config/cloudinary.js";
 
@@ -112,6 +113,7 @@ app.use("/api/cars", carRoutes);
 app.use("/api/buy-requests", buyRequestRoutes);
 app.use("/api/contact-queries", contactQueryRoutes);
 app.use("/api/reviews", reviewRoutes);
+app.use("/api/happy-clients", happyClientRoutes);
 
 app.use(errorHandler);
 

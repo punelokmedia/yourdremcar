@@ -15,6 +15,7 @@ const normalizeCar = (car) => ({
     : "Price on request",
   image: resolveCarImageUrl(car.imageUrl || "", API_URL),
   ownership: car.ownership || "Single Owner",
+  availability: car.availability || "Available",
 });
 const buildCarDetailsUrl = (car) => {
   const params = new URLSearchParams({
@@ -126,6 +127,16 @@ export default function GalleryPage() {
                 <div className="absolute left-3 top-3 rounded-full border border-white/35 bg-white/90 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-800">
                   {car.fuelType || "Featured"}
                 </div>
+                {car.availability === "Sold" ? (
+                  <div className="absolute right-3 top-3 rounded-full bg-emerald-600 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-md">
+                    Sold
+                  </div>
+                ) : null}
+                {car.availability === "Sold out" ? (
+                  <div className="absolute right-3 top-3 rounded-full bg-rose-600 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-md">
+                    Sold out
+                  </div>
+                ) : null}
                 <div className="pointer-events-none absolute bottom-0 left-0 right-0 p-4 text-white opacity-0 transition-opacity duration-300 group-hover:opacity-100">
                   <p className="text-xs font-medium tracking-wide text-slate-100/90">{car.year}</p>
                   <p className="mt-0.5 text-base font-semibold">{car.price}</p>

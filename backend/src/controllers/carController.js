@@ -361,9 +361,20 @@ const isTrustedVercelBlobUrl = (imageUrl) => {
 const isTrustedClientImageUrl = (imageUrl) =>
   isTrustedCloudinaryImageUrl(imageUrl) || isTrustedVercelBlobUrl(imageUrl);
 
+const AVAILABILITY_VALUES = ["Available", "Sold", "Sold out"];
+
 const getValidatedCarData = (payload) => {
-  const { title, brand, model, fuelType, year, price, description, ownership } =
-    payload;
+  const {
+    title,
+    brand,
+    model,
+    fuelType,
+    year,
+    price,
+    description,
+    ownership,
+    availability,
+  } = payload;
   if (
     !title ||
     !brand ||
@@ -394,6 +405,16 @@ const getValidatedCarData = (payload) => {
     };
   }
 
+  const availabilityValue =
+    availability && String(availability).trim() !== ""
+      ? String(availability).trim()
+      : "Available";
+  if (!AVAILABILITY_VALUES.includes(availabilityValue)) {
+    return {
+      error: `Availability must be one of: ${AVAILABILITY_VALUES.join(", ")}`,
+    };
+  }
+
   const parsedYear = Number(year);
   const parsedPrice = Number(price);
 
@@ -419,6 +440,7 @@ const getValidatedCarData = (payload) => {
       price: parsedPrice,
       description: description || "",
       ownership: ownershipValue,
+      availability: availabilityValue,
     },
   };
 };

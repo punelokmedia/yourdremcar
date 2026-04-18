@@ -17,6 +17,7 @@ const menuItems = [
   { label: "New Cars", icon: "✦", badge: null },
   { label: "Inventory", icon: "▦", badge: null },
   { label: "Reviews", icon: "★", badge: null },
+  { label: "Happy Customers", icon: "☺", badge: null },
   { label: "Contact Queries", icon: "☏", badge: null },
 ];
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
@@ -28,6 +29,7 @@ const OWNERSHIP_OPTIONS = [
   "Third Owner",
   "Multiple Owners",
 ];
+const AVAILABILITY_OPTIONS = ["Available", "Sold", "Sold out"];
 const getStatusButtonClass = (status, currentStatus) => {
   if (status === currentStatus) {
     if (status === "Resolved") {
@@ -53,6 +55,7 @@ export default function AdminDashboardPage() {
     model: "",
     fuelType: "Petrol",
     ownership: "Single Owner",
+    availability: "Available",
     year: "",
     price: "",
     description: "",
@@ -70,6 +73,17 @@ export default function AdminDashboardPage() {
   const [contactQueries, setContactQueries] = useState([]);
   const [reviews, setReviews] = useState([]);
   const [deletingReviewId, setDeletingReviewId] = useState("");
+  const [happyClients, setHappyClients] = useState([]);
+  const [deletingHappyClientId, setDeletingHappyClientId] = useState("");
+  const [happyClientForm, setHappyClientForm] = useState({
+    name: "",
+    text: "",
+    image: null,
+  });
+  const [happyClientFileKey, setHappyClientFileKey] = useState(0);
+  const [happyClientSubmitting, setHappyClientSubmitting] = useState(false);
+  const [happyClientMessage, setHappyClientMessage] = useState("");
+  const [happyClientError, setHappyClientError] = useState("");
   const [loadingData, setLoadingData] = useState(false);
   const [dataError, setDataError] = useState("");
   const [updatingStatusId, setUpdatingStatusId] = useState("");
@@ -127,18 +141,25 @@ export default function AdminDashboardPage() {
           cache: "no-store",
           headers: { Accept: "application/json" },
         };
-        const [carsResponse, buyRequestsResponse, contactQueriesResponse, reviewsResponse] =
-          await Promise.all([
-            fetch(`${API_URL}/cars`, fetchOpts),
-            fetch(`${API_URL}/buy-requests`, fetchOpts),
-            fetch(`${API_URL}/contact-queries`, fetchOpts),
-            fetch(`${API_URL}/reviews`, fetchOpts),
-          ]);
+        const [
+          carsResponse,
+          buyRequestsResponse,
+          contactQueriesResponse,
+          reviewsResponse,
+          happyClientsResponse,
+        ] = await Promise.all([
+          fetch(`${API_URL}/cars`, fetchOpts),
+          fetch(`${API_URL}/buy-requests`, fetchOpts),
+          fetch(`${API_URL}/contact-queries`, fetchOpts),
+          fetch(`${API_URL}/reviews`, fetchOpts),
+          fetch(`${API_URL}/happy-clients`, fetchOpts),
+        ]);
 
         const carsData = await carsResponse.json();
         const buyRequestsData = await buyRequestsResponse.json();
         const contactQueriesData = await contactQueriesResponse.json();
         const reviewsData = await reviewsResponse.json();
+        const happyClientsData = await happyClientsResponse.json();
 
         if (!carsResponse.ok) {
           throw new Error(carsData.message || "Failed to load cars data");
@@ -158,12 +179,17 @@ export default function AdminDashboardPage() {
           throw new Error(reviewsData.message || "Failed to load reviews");
         }
 
+        if (!happyClientsResponse.ok) {
+          throw new Error(happyClientsData.message || "Failed to load happy customers");
+        }
+
         const fetchedCars = carsData.data || [];
         setCars(fetchedCars);
         setTotalCars(fetchedCars.length);
         setBuyRequests(buyRequestsData.data || []);
         setContactQueries(contactQueriesData.data || []);
         setReviews(reviewsData.data || []);
+        setHappyClients(happyClientsData.data || []);
       } catch (error) {
         setDataError(error.message || "Failed to load dashboard data");
       } finally {
@@ -211,6 +237,9 @@ export default function AdminDashboardPage() {
     if (item.label === "Reviews") {
       return { ...item, badge: String(reviews.length) };
     }
+    if (item.label === "Happy Customers") {
+      return { ...item, badge: String(happyClients.length) };
+    }
     if (item.label === "Contact Queries") {
       return { ...item, badge: String(contactQueries.length) };
     }
@@ -247,6 +276,7 @@ export default function AdminDashboardPage() {
       model: "",
       fuelType: "Petrol",
       ownership: "Single Owner",
+      availability: "Available",
       year: "",
       price: "",
       description: "",
@@ -289,6 +319,7 @@ export default function AdminDashboardPage() {
       formData.append("model", newCarForm.model);
       formData.append("fuelType", newCarForm.fuelType);
       formData.append("ownership", newCarForm.ownership);
+      formData.append("availability", newCarForm.availability);
       formData.append("year", newCarForm.year);
       formData.append("price", newCarForm.price);
       formData.append("description", newCarForm.description);
@@ -318,6 +349,7 @@ export default function AdminDashboardPage() {
             model: newCarForm.model,
             fuelType: newCarForm.fuelType,
             ownership: newCarForm.ownership,
+            availability: newCarForm.availability,
             year: newCarForm.year,
             price: newCarForm.price,
             description: newCarForm.description,
@@ -382,6 +414,7 @@ export default function AdminDashboardPage() {
       model: car.model || "",
       fuelType: car.fuelType || "Petrol",
       ownership: car.ownership || "Single Owner",
+      availability: car.availability || "Available",
       year: car.year ? String(car.year) : "",
       price: car.price ? String(car.price) : "",
       description: car.description || "",
@@ -457,6 +490,82 @@ export default function AdminDashboardPage() {
       setDataError(error.message || "Failed to delete review");
     } finally {
       setDeletingReviewId("");
+    }
+  };
+
+  const handleHappyClientSubmit = async (event) => {
+    event.preventDefault();
+    setHappyClientSubmitting(true);
+    setHappyClientMessage("");
+    setHappyClientError("");
+
+    try {
+      if (!API_URL) {
+        setHappyClientError(MISSING_NEXT_PUBLIC_API_URL);
+        return;
+      }
+      if (!happyClientForm.image) {
+        setHappyClientError("Please choose a photo from your device.");
+        return;
+      }
+      const formData = new FormData();
+      formData.append("name", happyClientForm.name.trim());
+      formData.append("text", happyClientForm.text.trim());
+      formData.append("image", happyClientForm.image);
+
+      const response = await fetch(`${API_URL}/happy-clients`, {
+        method: "POST",
+        body: formData,
+        cache: "no-store",
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to add happy customer");
+      }
+
+      setHappyClients((prev) => [data.data, ...prev]);
+      setHappyClientForm({ name: "", text: "", image: null });
+      setHappyClientFileKey((k) => k + 1);
+      setHappyClientMessage("Happy customer added. Photo is stored in public/images/happy-clients on the server.");
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("happy-clients-changed"));
+      }
+    } catch (error) {
+      setHappyClientError(error.message || "Failed to add happy customer");
+    } finally {
+      setHappyClientSubmitting(false);
+    }
+  };
+
+  const handleDeleteHappyClient = async (clientId) => {
+    const confirmed = window.confirm(
+      "Delete this entry and remove the image file from the server?"
+    );
+    if (!confirmed) return;
+
+    setDeletingHappyClientId(clientId);
+    setHappyClientError("");
+
+    try {
+      if (!API_URL) {
+        setHappyClientError(MISSING_NEXT_PUBLIC_API_URL);
+        return;
+      }
+      const response = await fetch(`${API_URL}/happy-clients/${clientId}`, {
+        method: "DELETE",
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to delete");
+      }
+      setHappyClients((prev) => prev.filter((h) => h._id !== clientId));
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("happy-clients-changed"));
+      }
+    } catch (error) {
+      setHappyClientError(error.message || "Failed to delete");
+    } finally {
+      setDeletingHappyClientId("");
     }
   };
 
@@ -607,6 +716,8 @@ export default function AdminDashboardPage() {
                   closeCarFormPanel();
                   setNewCarMessage("");
                   setNewCarError("");
+                  setHappyClientMessage("");
+                  setHappyClientError("");
                   setSidebarOpen(false);
                 }}
                 whileHover={{ x: 4, scale: 1.01 }}
@@ -757,6 +868,167 @@ export default function AdminDashboardPage() {
                 </table>
               </div>
             </article>
+          ) : activeMenu === "Happy Customers" ? (
+            <div className="space-y-6">
+              <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="mb-4">
+                  <h2 className="text-xl font-bold text-slate-900">Add happy customer</h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Upload a photo from your device. Files are saved in{" "}
+                    <code className="rounded bg-slate-100 px-1 text-xs">frontend/public/images/happy-clients</code>{" "}
+                    (not Cloudinary).
+                  </p>
+                </div>
+
+                {happyClientMessage ? (
+                  <p className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+                    {happyClientMessage}
+                  </p>
+                ) : null}
+                {happyClientError ? (
+                  <p className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                    {happyClientError}
+                  </p>
+                ) : null}
+
+                <form onSubmit={handleHappyClientSubmit} className="grid gap-4 md:max-w-xl">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Client name
+                    </label>
+                    <input
+                      type="text"
+                      value={happyClientForm.name}
+                      onChange={(e) =>
+                        setHappyClientForm((p) => ({ ...p, name: e.target.value }))
+                      }
+                      placeholder="Name"
+                      required
+                      minLength={2}
+                      maxLength={120}
+                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Short text / quote
+                    </label>
+                    <textarea
+                      value={happyClientForm.text}
+                      onChange={(e) =>
+                        setHappyClientForm((p) => ({ ...p, text: e.target.value }))
+                      }
+                      placeholder="What they said or a short note…"
+                      required
+                      minLength={5}
+                      maxLength={800}
+                      rows={3}
+                      className="w-full resize-none rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Photo (from device)
+                    </label>
+                    <input
+                      key={happyClientFileKey}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      onChange={(e) =>
+                        setHappyClientForm((p) => ({
+                          ...p,
+                          image: e.target.files?.[0] || null,
+                        }))
+                      }
+                      className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={happyClientSubmitting}
+                    className="w-fit rounded-full bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-black disabled:opacity-60"
+                  >
+                    {happyClientSubmitting ? "Uploading…" : "Save happy customer"}
+                  </button>
+                </form>
+              </article>
+
+              <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="mb-4 flex items-center justify-between">
+                  <h2 className="text-xl font-bold text-slate-900">Happy customers on site</h2>
+                  <span className="rounded-full border border-slate-300 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                    {happyClients.length} Total
+                  </span>
+                </div>
+
+                {dataError ? (
+                  <p className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                    {dataError}
+                  </p>
+                ) : null}
+
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[640px] text-left text-sm">
+                    <thead className="border-b border-slate-200 text-slate-600">
+                      <tr>
+                        <th className="py-2 pr-3 font-semibold">Photo</th>
+                        <th className="py-2 pr-3 font-semibold">Name</th>
+                        <th className="py-2 pr-3 font-semibold">Text</th>
+                        <th className="py-2 pr-3 font-semibold">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loadingData ? (
+                        <tr>
+                          <td
+                            colSpan={4}
+                            className="py-4 text-center text-sm font-medium text-slate-500"
+                          >
+                            Loading…
+                          </td>
+                        </tr>
+                      ) : happyClients.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={4}
+                            className="py-4 text-center text-sm font-medium text-slate-500"
+                          >
+                            No happy customers yet.
+                          </td>
+                        </tr>
+                      ) : (
+                        happyClients.map((hc) => (
+                          <tr key={hc._id} className="border-b border-slate-100 text-slate-700">
+                            <td className="py-3 pr-3">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={hc.imagePath}
+                                alt=""
+                                className="h-14 w-14 rounded-lg border border-slate-200 object-cover"
+                              />
+                            </td>
+                            <td className="py-3 pr-3 font-medium">{hc.name}</td>
+                            <td className="max-w-md py-3 pr-3">
+                              <p className="line-clamp-3">{hc.text}</p>
+                            </td>
+                            <td className="py-3 pr-3">
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteHappyClient(hc._id)}
+                                disabled={deletingHappyClientId === hc._id}
+                                className="rounded-lg border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-60"
+                              >
+                                {deletingHappyClientId === hc._id ? "Deleting…" : "Delete"}
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+            </div>
           ) : activeMenu === "Contact Queries" ? (
             <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="mb-4 flex items-center justify-between">
@@ -877,7 +1149,7 @@ export default function AdminDashboardPage() {
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[880px] text-left text-sm">
+                  <table className="w-full min-w-[960px] text-left text-sm">
                     <thead className="border-b border-slate-200 text-slate-600">
                       <tr>
                         <th className="py-2 pr-3 font-semibold">Title</th>
@@ -885,6 +1157,7 @@ export default function AdminDashboardPage() {
                         <th className="py-2 pr-3 font-semibold">Model</th>
                         <th className="py-2 pr-3 font-semibold">Fuel</th>
                         <th className="py-2 pr-3 font-semibold">Ownership</th>
+                        <th className="py-2 pr-3 font-semibold">Status</th>
                         <th className="py-2 pr-3 font-semibold">Year</th>
                         <th className="py-2 pr-3 font-semibold">Price</th>
                         <th className="py-2 pr-3 font-semibold">Actions</th>
@@ -894,7 +1167,7 @@ export default function AdminDashboardPage() {
                       {loadingData ? (
                         <tr>
                           <td
-                            colSpan={8}
+                            colSpan={9}
                             className="py-4 text-center text-sm font-medium text-slate-500"
                           >
                             Loading cars...
@@ -903,7 +1176,7 @@ export default function AdminDashboardPage() {
                       ) : cars.length === 0 ? (
                         <tr>
                           <td
-                            colSpan={8}
+                            colSpan={9}
                             className="py-4 text-center text-sm font-medium text-slate-500"
                           >
                             No cars listed yet. Click Add Car to create your first listing.
@@ -918,6 +1191,19 @@ export default function AdminDashboardPage() {
                             <td className="py-3 pr-3">{car.fuelType || "-"}</td>
                             <td className="py-3 pr-3 text-xs">
                               {car.ownership || "Single Owner"}
+                            </td>
+                            <td className="py-3 pr-3">
+                              <span
+                                className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                                  car.availability === "Sold"
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : car.availability === "Sold out"
+                                      ? "bg-rose-100 text-rose-800"
+                                      : "bg-slate-100 text-slate-700"
+                                }`}
+                              >
+                                {car.availability || "Available"}
+                              </span>
                             </td>
                             <td className="py-3 pr-3">{car.year || "-"}</td>
                             <td className="py-3 pr-3">
@@ -1150,6 +1436,35 @@ export default function AdminDashboardPage() {
                         </div>
                         <p className="text-xs font-normal text-slate-500">
                           Select how many owners the vehicle has had.
+                        </p>
+                      </div>
+
+                      <div className="space-y-1.5 text-sm font-medium text-slate-700 md:col-span-2">
+                        <span>Availability</span>
+                        <div className="grid grid-cols-3 gap-2">
+                          {AVAILABILITY_OPTIONS.map((option) => {
+                            const isActive = newCarForm.availability === option;
+                            return (
+                              <button
+                                key={option}
+                                type="button"
+                                onClick={() =>
+                                  setNewCarForm((prev) => ({ ...prev, availability: option }))
+                                }
+                                className={`rounded-xl border px-2 py-2 text-center text-xs font-semibold leading-tight transition sm:text-sm ${
+                                  isActive
+                                    ? "border-blue-600 bg-blue-600 text-white shadow-sm"
+                                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                                }`}
+                                aria-pressed={isActive}
+                              >
+                                {option}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <p className="text-xs font-normal text-slate-500">
+                          Mark as <strong>Sold</strong> or <strong>Sold out</strong> when the car is no longer available.
                         </p>
                       </div>
 

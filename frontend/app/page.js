@@ -24,6 +24,7 @@ const normalizeCar = (car, apiBase) => ({
   image: resolveCarImageUrl(car.imageUrl || "", apiBase),
   category: car.fuelType || "Unknown",
   ownership: car.ownership || "Single Owner",
+  availability: car.availability || "Available",
 });
 const highlights = [
   { title: "Verified Cars", value: "1200+" },
@@ -382,6 +383,19 @@ export default function HomePage() {
             </p>
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <p className="text-2xl font-semibold md:text-3xl">{activeCar.price}</p>
+              {activeCar.availability === "Sold out" ? (
+                <span className="rounded-full bg-rose-600 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow sm:text-xs">
+                  Sold out
+                </span>
+              ) : activeCar.availability === "Sold" ? (
+                <span className="rounded-full bg-emerald-500 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow sm:text-xs">
+                  Sold
+                </span>
+              ) : (
+                <span className="rounded-full border border-emerald-300/80 bg-emerald-500/25 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-emerald-100 sm:text-xs">
+                  Available
+                </span>
+              )}
               <span className="rounded-full border border-white/30 bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/90 sm:px-3 sm:py-1 sm:text-xs">
                 Best Deal
               </span>
@@ -711,6 +725,21 @@ export default function HomePage() {
                 <div className="absolute left-3 top-3 rounded-full border border-white/40 bg-white/90 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-800">
                   {car.category || "Featured"}
                 </div>
+                <div className="absolute right-3 top-3 z-10">
+                  {car.availability === "Sold out" ? (
+                    <span className="inline-flex rounded-full bg-rose-600 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-md">
+                      Sold out
+                    </span>
+                  ) : car.availability === "Sold" ? (
+                    <span className="inline-flex rounded-full bg-emerald-600 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-md">
+                      Sold
+                    </span>
+                  ) : (
+                    <span className="inline-flex rounded-full border border-white/60 bg-emerald-600/95 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-md">
+                      Available
+                    </span>
+                  )}
+                </div>
                 <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between">
                   <div>
                     <p className="text-xs font-medium uppercase tracking-[0.1em] text-white/80">
@@ -734,6 +763,20 @@ export default function HomePage() {
                 </div>
                 <p className="mt-2 text-sm text-slate-600">
                   Verified profile with transparent pricing and quick support.
+                </p>
+                <p className="mt-2 text-xs font-semibold text-slate-500">
+                  Status:{" "}
+                  <span
+                    className={
+                      car.availability === "Sold out"
+                        ? "text-rose-700"
+                        : car.availability === "Sold"
+                          ? "text-emerald-700"
+                          : "text-emerald-600"
+                    }
+                  >
+                    {car.availability || "Available"}
+                  </span>
                 </p>
                 <div className="mt-4 flex flex-wrap items-center gap-2">
                   <a

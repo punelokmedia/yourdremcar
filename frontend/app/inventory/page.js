@@ -17,6 +17,7 @@ const normalizeCar = (car) => ({
   type: car.fuelType || "Unknown",
   image: resolveCarImageUrl(car.imageUrl || "", API_URL),
   ownership: car.ownership || "Single Owner",
+  availability: car.availability || "Available",
 });
 const buildCarDetailsUrl = (car) => {
   const params = new URLSearchParams({
@@ -161,6 +162,16 @@ export default function InventoryPage() {
                 <div className="absolute left-3 top-3 rounded-full border border-white/35 bg-white/90 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-800">
                   {car.type}
                 </div>
+                {car.availability === "Sold" ? (
+                  <div className="absolute right-3 top-3 rounded-full bg-emerald-600 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-md">
+                    Sold
+                  </div>
+                ) : null}
+                {car.availability === "Sold out" ? (
+                  <div className="absolute right-3 top-3 rounded-full bg-rose-600 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-md">
+                    Sold out
+                  </div>
+                ) : null}
               </div>
               <div className="p-4">
                 <div className="mb-2 flex items-center justify-between">
