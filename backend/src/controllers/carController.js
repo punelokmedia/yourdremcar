@@ -100,6 +100,18 @@ const logCloudinaryFailure = (uploadError) => {
   }
 };
 
+const getCloudinaryFailureClientMessage = (uploadError) => {
+  const code = uploadError?.http_code ?? uploadError?.statusCode;
+  const reason =
+    typeof uploadError?.message === "string" && uploadError.message.trim()
+      ? uploadError.message.trim()
+      : "Unknown Cloudinary error";
+  if (code === 401 || code === 403) {
+    return `Cloudinary auth failed (${code}): check CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET in deployed backend environment.`;
+  }
+  return `Cloudinary upload failed: ${reason}`;
+};
+
 /**
  * Cloudinary when credentials exist and disk is not reliable:
  * - CAR_USE_CLOUDINARY=true, or
@@ -218,8 +230,9 @@ export const createCar = async (req, res, next) => {
             logCloudinaryFailure(uploadError);
             return res.status(503).json({
               success: false,
-              message:
-                "Cloudinary upload failed; cannot fall back to disk on this host.",
+              message: `${getCloudinaryFailureClientMessage(
+                uploadError
+              )} Cannot fall back to disk on this host.`,
             });
           }
           const localFileName = await saveImageLocally(
@@ -293,8 +306,9 @@ export const updateCar = async (req, res, next) => {
             logCloudinaryFailure(uploadError);
             return res.status(503).json({
               success: false,
-              message:
-                "Cloudinary upload failed; cannot fall back to disk on this host.",
+              message: `${getCloudinaryFailureClientMessage(
+                uploadError
+              )} Cannot fall back to disk on this host.`,
             });
           }
           const localFileName = await saveImageLocally(
