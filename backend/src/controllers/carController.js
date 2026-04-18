@@ -22,6 +22,16 @@ const uploadImageToCloudinary = (fileBuffer) =>
 
   });
 
+const isServerlessRuntime = () =>
+  Boolean(
+    process.env.VERCEL ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    process.env.NETLIFY
+  );
+
+const SERVERLESS_UPLOAD_MESSAGE =
+  "Image storage on this host requires Cloudinary. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in the server environment (Vercel: Project Settings → Environment Variables). Optional: CAR_USE_CLOUDINARY=true.";
+
 const saveImageLocally = async (fileBuffer, originalName = "car-image.jpg") => {
   const uploadsDir = path.join(process.cwd(), "uploads");
   await fs.mkdir(uploadsDir, { recursive: true });
@@ -87,9 +97,13 @@ const logCloudinaryFailure = (uploadError) => {
   }
 };
 
-/** Fast local disk upload by default. Set CAR_USE_CLOUDINARY=true to use Cloudinary when configured. */
+/**
+ * Cloudinary when configured and (explicit opt-in OR serverless — Vercel/Lambda cannot persist ./uploads).
+ * Local dev: defaults to disk unless CAR_USE_CLOUDINARY=true.
+ */
 const shouldUseCloudinaryUpload = () =>
-  isCloudinaryConfigured() && process.env.CAR_USE_CLOUDINARY === "true";
+  isCloudinaryConfigured() &&
+  (process.env.CAR_USE_CLOUDINARY === "true" || isServerlessRuntime());
 
 const OWNERSHIP_VALUES = [
   "Single Owner",
@@ -188,6 +202,14 @@ export const createCar = async (req, res, next) => {
           carData.imageUrl = uploaded.secure_url;
           carData.imagePublicId = uploaded.public_id;
         } catch (uploadError) {
+          if (isServerlessRuntime()) {
+            logCloudinaryFailure(uploadError);
+            return res.status(503).json({
+              success: false,
+              message:
+                "Cloudinary upload failed; cannot fall back to disk on this host.",
+            });
+          }
           const localFileName = await saveImageLocally(
             req.file.buffer,
             req.file.originalname || "car-image.jpg"
@@ -198,6 +220,11 @@ export const createCar = async (req, res, next) => {
           uploadWarning =
             "Cloudinary upload failed. Image saved on local server storage.";
         }
+      } else if (isServerlessRuntime()) {
+        return res.status(503).json({
+          success: false,
+          message: SERVERLESS_UPLOAD_MESSAGE,
+        });
       } else {
         const localFileName = await saveImageLocally(
           req.file.buffer,
@@ -250,6 +277,14 @@ export const updateCar = async (req, res, next) => {
             await deleteLocalImageIfAny(car.imageUrl);
           }
         } catch (uploadError) {
+          if (isServerlessRuntime()) {
+            logCloudinaryFailure(uploadError);
+            return res.status(503).json({
+              success: false,
+              message:
+                "Cloudinary upload failed; cannot fall back to disk on this host.",
+            });
+          }
           const localFileName = await saveImageLocally(
             req.file.buffer,
             req.file.originalname || "car-image.jpg"
@@ -268,6 +303,11 @@ export const updateCar = async (req, res, next) => {
             "Cloudinary upload failed. New image saved on local server storage.";
           logCloudinaryFailure(uploadError);
         }
+      } else if (isServerlessRuntime()) {
+        return res.status(503).json({
+          success: false,
+          message: SERVERLESS_UPLOAD_MESSAGE,
+        });
       } else {
         const localFileName = await saveImageLocally(
           req.file.buffer,
