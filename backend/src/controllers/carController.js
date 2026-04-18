@@ -107,7 +107,7 @@ const getCloudinaryFailureClientMessage = (uploadError) => {
       ? uploadError.message.trim()
       : "Unknown Cloudinary error";
   if (code === 401 || code === 403) {
-    return `Cloudinary auth failed (${code}): check CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET in deployed backend environment.`;
+    return `Cloudinary auth failed (${code}): ${reason}. Check CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET (or CLOUDINARY_URL) in deployed backend environment.`;
   }
   return `Cloudinary upload failed: ${reason}`;
 };
