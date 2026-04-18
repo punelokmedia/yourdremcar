@@ -5,19 +5,18 @@ import { AnimatePresence, motion } from "framer-motion";
 import { resolveCarImageUrl } from "../lib/resolveCarImageUrl";
 import { getApiUrl, MISSING_NEXT_PUBLIC_API_URL } from "../lib/getApiUrl";
 
-const API_URL = getApiUrl();
 const galleryFilters = ["All", "Petrol", "CNG"];
 const formatPrice = (value) => {
   const num = Number(value);
   if (!Number.isFinite(num)) return "Price on request";
   return `Rs ${new Intl.NumberFormat("en-IN").format(num)}`;
 };
-const normalizeCar = (car) => ({
+const normalizeCar = (car, apiBase) => ({
   ...car,
   name: car.title || `${car.brand || ""} ${car.model || ""}`.trim() || "Car Listing",
   year: car.year ? String(car.year) : "N/A",
   price: formatPrice(car.price),
-  image: resolveCarImageUrl(car.imageUrl || "", API_URL),
+  image: resolveCarImageUrl(car.imageUrl || "", apiBase),
   category: car.fuelType || "Unknown",
   ownership: car.ownership || "Single Owner",
 });
@@ -92,14 +91,19 @@ export default function HomePage() {
   const [visibleCarsCount, setVisibleCarsCount] = useState(9);
   const [activeGalleryFilter, setActiveGalleryFilter] = useState("All");
   const [statusMessage, setStatusMessage] = useState("");
+  const [heroImageBroken, setHeroImageBroken] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     phone: "",
     carName: "",
   });
-  const normalizedCars = useMemo(() => cars.map(normalizeCar), [cars]);
-  const activeCar = normalizedCars[activeIndex] || normalizeCar({});
+  const normalizedCars = useMemo(() => {
+    const apiBase = getApiUrl();
+    return cars.map((car) => normalizeCar(car, apiBase));
+  }, [cars]);
+  const activeCar =
+    normalizedCars[activeIndex] || normalizeCar({}, getApiUrl());
   const galleryCars = normalizedCars;
   const aboutPreviewCars =
     normalizedCars.length >= 3
@@ -117,6 +121,7 @@ export default function HomePage() {
       if (showLoading) setCarsLoading(true);
       setCarsError("");
       try {
+        const API_URL = getApiUrl();
         if (!API_URL) {
           if (!cancelled) setCarsError(MISSING_NEXT_PUBLIC_API_URL);
           return;
@@ -166,6 +171,10 @@ export default function HomePage() {
   }, [normalizedCars.length]);
 
   useEffect(() => {
+    setHeroImageBroken(false);
+  }, [activeCar.image]);
+
+  useEffect(() => {
     if (!activeCar.name) return;
     setFormData((prev) => ({ ...prev, carName: activeCar.name }));
   }, [activeCar.name]);
@@ -181,6 +190,7 @@ export default function HomePage() {
     setStatusMessage("");
 
     try {
+      const API_URL = getApiUrl();
       if (!API_URL) {
         setStatusMessage(MISSING_NEXT_PUBLIC_API_URL);
         return;
@@ -218,15 +228,24 @@ export default function HomePage() {
   return (
     <main className="w-full">
       <section className="relative w-full min-h-[max(88vh,600px)] overflow-x-hidden">
-        {activeCar.image ? (
+        {activeCar.image && !heroImageBroken ? (
           <img
             src={activeCar.image}
-            alt={activeCar.name}
+            alt=""
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
+            referrerPolicy="no-referrer-when-downgrade"
+            onError={() => setHeroImageBroken(true)}
             className="absolute inset-0 h-full min-h-full w-full object-cover object-center transition-all duration-700"
           />
         ) : (
-          <div className="absolute inset-0 flex min-h-full items-center justify-center bg-slate-300">
-            <p className="text-sm font-semibold text-slate-700">No image from backend</p>
+          <div className="absolute inset-0 flex min-h-full items-center justify-center bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950">
+            <p className="max-w-sm px-4 text-center text-sm font-medium text-slate-300">
+              {heroImageBroken
+                ? "Image could not be loaded. Re-upload the car photo in admin (use Cloudinary on production)."
+                : "No image from backend"}
+            </p>
           </div>
         )}
 

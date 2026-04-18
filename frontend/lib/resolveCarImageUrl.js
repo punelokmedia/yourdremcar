@@ -2,7 +2,6 @@ const DEFAULT_DEV_API = "http://localhost:5000/api";
 
 function getApiOrigin(apiUrl) {
   const raw = (apiUrl || "").trim();
-  // Relative bases (e.g. "/api") cannot produce a real origin — would break rewriting.
   if (!raw || raw.startsWith("/")) return "";
   try {
     const u = new URL(raw.includes("://") ? raw : `https://${raw}`);
@@ -12,21 +11,39 @@ function getApiOrigin(apiUrl) {
   }
 }
 
+function effectiveApiBase(apiUrl) {
+  const passed = apiUrl?.trim?.();
+  if (passed) return passed;
+  if (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL?.trim()) {
+    return process.env.NEXT_PUBLIC_API_URL.trim();
+  }
+  return process.env.NODE_ENV === "development" ? DEFAULT_DEV_API : "";
+}
+
 /**
  * Maps localhost / relative upload URLs to the deployed API origin (NEXT_PUBLIC_API_URL).
  * Leaves Cloudinary and other absolute URLs unchanged.
  */
 export function resolveCarImageUrl(imageUrl, apiUrl) {
   if (!imageUrl || typeof imageUrl !== "string") return "";
-  const resolvedApi =
-    apiUrl ??
-    (typeof process !== "undefined" ? process.env.NEXT_PUBLIC_API_URL : undefined);
-  const effectiveBase =
-    (resolvedApi && String(resolvedApi).trim()) ||
-    (process.env.NODE_ENV === "development" ? DEFAULT_DEV_API : "");
-  const origin = getApiOrigin(effectiveBase);
-  const trim = imageUrl.trim();
+  const base = effectiveApiBase(apiUrl);
+  const origin = getApiOrigin(base);
+
+  let trim = imageUrl.trim().replace(/\u00a0/g, "");
   if (!trim) return "";
+
+  // Protocol-relative (//res.cloudinary.com/...)
+  if (trim.startsWith("//")) {
+    trim = `https:${trim}`;
+  }
+
+  // Common mistake: "res.cloudinary.com/..." without scheme
+  if (
+    !/^https?:\/\//i.test(trim) &&
+    (trim.startsWith("res.cloudinary.com/") || trim.includes("res.cloudinary.com/"))
+  ) {
+    trim = `https://${trim.replace(/^\/+/, "")}`;
+  }
 
   try {
     const u = new URL(trim);
@@ -42,6 +59,10 @@ export function resolveCarImageUrl(imageUrl, apiUrl) {
   } catch {
     if (trim.startsWith("/uploads/")) {
       return origin ? `${origin}${trim}` : trim;
+    }
+    // Bare filename stored by mistake — only when it looks like our upload names
+    if (/^car-\d+-[a-z0-9]+\.(png|jpe?g|webp)$/i.test(trim) && origin) {
+      return `${origin}/uploads/${trim}`;
     }
     return trim;
   }
