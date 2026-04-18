@@ -16,6 +16,7 @@ const menuItems = [
   { label: "Overview", icon: "◈", badge: null },
   { label: "New Cars", icon: "✦", badge: null },
   { label: "Inventory", icon: "▦", badge: null },
+  { label: "Reviews", icon: "★", badge: null },
   { label: "Contact Queries", icon: "☏", badge: null },
 ];
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
@@ -67,6 +68,8 @@ export default function AdminDashboardPage() {
   const [totalCars, setTotalCars] = useState(0);
   const [buyRequests, setBuyRequests] = useState([]);
   const [contactQueries, setContactQueries] = useState([]);
+  const [reviews, setReviews] = useState([]);
+  const [deletingReviewId, setDeletingReviewId] = useState("");
   const [loadingData, setLoadingData] = useState(false);
   const [dataError, setDataError] = useState("");
   const [updatingStatusId, setUpdatingStatusId] = useState("");
@@ -124,16 +127,18 @@ export default function AdminDashboardPage() {
           cache: "no-store",
           headers: { Accept: "application/json" },
         };
-        const [carsResponse, buyRequestsResponse, contactQueriesResponse] =
+        const [carsResponse, buyRequestsResponse, contactQueriesResponse, reviewsResponse] =
           await Promise.all([
             fetch(`${API_URL}/cars`, fetchOpts),
             fetch(`${API_URL}/buy-requests`, fetchOpts),
             fetch(`${API_URL}/contact-queries`, fetchOpts),
+            fetch(`${API_URL}/reviews`, fetchOpts),
           ]);
 
         const carsData = await carsResponse.json();
         const buyRequestsData = await buyRequestsResponse.json();
         const contactQueriesData = await contactQueriesResponse.json();
+        const reviewsData = await reviewsResponse.json();
 
         if (!carsResponse.ok) {
           throw new Error(carsData.message || "Failed to load cars data");
@@ -149,11 +154,16 @@ export default function AdminDashboardPage() {
           );
         }
 
+        if (!reviewsResponse.ok) {
+          throw new Error(reviewsData.message || "Failed to load reviews");
+        }
+
         const fetchedCars = carsData.data || [];
         setCars(fetchedCars);
         setTotalCars(fetchedCars.length);
         setBuyRequests(buyRequestsData.data || []);
         setContactQueries(contactQueriesData.data || []);
+        setReviews(reviewsData.data || []);
       } catch (error) {
         setDataError(error.message || "Failed to load dashboard data");
       } finally {
@@ -197,6 +207,9 @@ export default function AdminDashboardPage() {
     }
     if (item.label === "Inventory") {
       return { ...item, badge: String(totalCars) };
+    }
+    if (item.label === "Reviews") {
+      return { ...item, badge: String(reviews.length) };
     }
     if (item.label === "Contact Queries") {
       return { ...item, badge: String(contactQueries.length) };
@@ -417,6 +430,36 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const handleDeleteReview = async (reviewId) => {
+    const confirmed = window.confirm("Delete this review permanently?");
+    if (!confirmed) return;
+
+    setDeletingReviewId(reviewId);
+    setDataError("");
+
+    try {
+      if (!API_URL) {
+        setDataError(MISSING_NEXT_PUBLIC_API_URL);
+        return;
+      }
+      const response = await fetch(`${API_URL}/reviews/${reviewId}`, {
+        method: "DELETE",
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to delete review");
+      }
+      setReviews((prev) => prev.filter((r) => r._id !== reviewId));
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("reviews-changed"));
+      }
+    } catch (error) {
+      setDataError(error.message || "Failed to delete review");
+    } finally {
+      setDeletingReviewId("");
+    }
+  };
+
   const handleStatusUpdate = async (queryId, status) => {
     setUpdatingStatusId(queryId);
     setDataError("");
@@ -634,7 +677,87 @@ export default function AdminDashboardPage() {
             </div>
           </div>
 
-          {activeMenu === "Contact Queries" ? (
+          {activeMenu === "Reviews" ? (
+            <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-xl font-bold text-slate-900">Customer reviews</h2>
+                <span className="rounded-full border border-slate-300 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                  {reviews.length} Total
+                </span>
+              </div>
+
+              {dataError ? (
+                <p className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                  {dataError}
+                </p>
+              ) : null}
+
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[720px] text-left text-sm">
+                  <thead className="border-b border-slate-200 text-slate-600">
+                    <tr>
+                      <th className="py-2 pr-3 font-semibold">Name</th>
+                      <th className="py-2 pr-3 font-semibold">Rating</th>
+                      <th className="py-2 pr-3 font-semibold">Comment</th>
+                      <th className="py-2 pr-3 font-semibold">Date</th>
+                      <th className="py-2 pr-3 font-semibold">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loadingData ? (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="py-4 text-center text-sm font-medium text-slate-500"
+                        >
+                          Loading reviews...
+                        </td>
+                      </tr>
+                    ) : reviews.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="py-4 text-center text-sm font-medium text-slate-500"
+                        >
+                          No reviews yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      reviews.map((rev) => (
+                        <tr key={rev._id} className="border-b border-slate-100 text-slate-700">
+                          <td className="py-3 pr-3 font-medium">{rev.name}</td>
+                          <td className="py-3 pr-3 text-amber-600">
+                            {"★".repeat(rev.rating)}
+                            <span className="text-slate-400">
+                              {"★".repeat(Math.max(0, 5 - rev.rating))}
+                            </span>
+                          </td>
+                          <td className="max-w-md py-3 pr-3">
+                            <p className="line-clamp-3">{rev.comment}</p>
+                          </td>
+                          <td className="whitespace-nowrap py-3 pr-3 text-xs text-slate-600">
+                            {rev.createdAt
+                              ? new Date(rev.createdAt).toLocaleString()
+                              : "-"}
+                          </td>
+                          <td className="py-3 pr-3">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteReview(rev._id)}
+                              disabled={deletingReviewId === rev._id}
+                              className="rounded-lg border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-60"
+                            >
+                              {deletingReviewId === rev._id ? "Deleting…" : "Delete"}
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </article>
+          ) : activeMenu === "Contact Queries" ? (
             <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-xl font-bold text-slate-900">All Contact Queries</h2>

@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
-import Link from "next/link";
 import logo from "../logo.png";
 
 const links = [
@@ -61,12 +60,6 @@ export default function Navbar() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <Link
-            href="/admin/login"
-            className="inline-flex shrink-0 rounded-full border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
-          >
-            Login
-          </Link>
           <a
             href="/"
             className="hidden shrink-0 rounded-full bg-gradient-to-r from-slate-800 to-black px-4 py-2.5 text-sm font-semibold text-white shadow-md transition hover:from-slate-700 hover:to-slate-900 md:inline-flex"
@@ -120,13 +113,6 @@ export default function Navbar() {
                 {link.label}
               </a>
             ))}
-            <Link
-              href="/admin/login"
-              onClick={() => setIsOpen(false)}
-              className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-            >
-              Login
-            </Link>
           </nav>
         </motion.div>
       ) : null}

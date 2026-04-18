@@ -37,9 +37,7 @@ export default function AdminLoginPage() {
 
     setTimeout(() => {
       if (!isValid) {
-        setError(
-          "Invalid credentials. Try yourdreamcars1806@gmail.com / yourdremcar123"
-        );
+        setError("Invalid email or password.");
         setLoading(false);
         return;
       }
@@ -116,7 +114,7 @@ export default function AdminLoginPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="yourdreamcars1806@gmail.com"
+                placeholder="Email address"
                 className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5"
                 required
               />
@@ -149,11 +147,6 @@ export default function AdminLoginPage() {
               {loading ? "Signing in..." : "Login"}
             </button>
           </form>
-
-          <p className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-            Demo credentials: <span className="font-semibold">yourdreamcars1806@gmail.com</span>{" "}
-            / <span className="font-semibold">yourdremcar123</span>
-          </p>
         </motion.div>
       </section>
     </main>

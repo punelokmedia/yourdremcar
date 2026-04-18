@@ -60,6 +60,34 @@ function WhatsAppGlyph({ className }) {
   );
 }
 
+function StarRatingInput({ value, onChange, variant = "dark" }) {
+  const active = variant === "light" ? "text-amber-500" : "text-amber-400";
+  const idle = variant === "light" ? "text-slate-300" : "text-slate-500";
+  const hint = variant === "light" ? "text-slate-500" : "text-slate-400";
+  const ring = variant === "light" ? "focus:ring-amber-500/50" : "focus:ring-amber-400/60";
+  return (
+    <div className="flex flex-wrap items-center gap-1" role="radiogroup" aria-label="Rating">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          type="button"
+          onClick={() => onChange(n)}
+          className={`rounded-md px-0.5 text-2xl leading-none transition hover:scale-110 focus:outline-none focus:ring-2 ${ring} ${
+            n <= value ? active : idle
+          }`}
+          aria-label={`${n} star${n > 1 ? "s" : ""}`}
+          aria-pressed={n <= value}
+        >
+          ★
+        </button>
+      ))}
+      <span className={`ml-1 text-xs ${hint}`}>
+        {value > 0 ? `${value}/5` : "Tap stars"}
+      </span>
+    </div>
+  );
+}
+
 function PhoneGlyph({ className }) {
   return (
     <svg
@@ -96,6 +124,15 @@ export default function HomePage() {
     phone: "",
     carName: "",
   });
+  const [reviews, setReviews] = useState([]);
+  const [reviewForm, setReviewForm] = useState({
+    name: "",
+    rating: 0,
+    comment: "",
+  });
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewFeedback, setReviewFeedback] = useState("");
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const normalizedCars = useMemo(() => {
     const apiBase = getApiUrl();
     return cars.map((car) => normalizeCar(car, apiBase));
@@ -160,6 +197,37 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    const loadReviews = async () => {
+      try {
+        const API_URL = getApiUrl();
+        if (!API_URL) return;
+        const r = await fetch(`${API_URL}/reviews`, {
+          cache: "no-store",
+          headers: { Accept: "application/json" },
+        });
+        const data = await r.json();
+        if (!cancelled && r.ok) setReviews(data.data || []);
+      } catch {
+        /* ignore */
+      }
+    };
+    loadReviews();
+    const onReviewsChanged = () => {
+      loadReviews();
+    };
+    if (typeof window !== "undefined") {
+      window.addEventListener("reviews-changed", onReviewsChanged);
+    }
+    return () => {
+      cancelled = true;
+      if (typeof window !== "undefined") {
+        window.removeEventListener("reviews-changed", onReviewsChanged);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (normalizedCars.length <= 1) return undefined;
     const interval = setInterval(() => {
       setActiveIndex((prev) => (prev + 1) % normalizedCars.length);
@@ -180,6 +248,52 @@ export default function HomePage() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleReviewSubmit = async (e) => {
+    e.preventDefault();
+    setReviewFeedback("");
+    if (reviewForm.rating < 1 || reviewForm.rating > 5) {
+      setReviewFeedback("Please choose a star rating.");
+      return;
+    }
+    if (reviewForm.comment.trim().length < 5) {
+      setReviewFeedback("Please write a few words about your experience.");
+      return;
+    }
+    setReviewSubmitting(true);
+    try {
+      const API_URL = getApiUrl();
+      if (!API_URL) {
+        setReviewFeedback(MISSING_NEXT_PUBLIC_API_URL);
+        return;
+      }
+      const res = await fetch(`${API_URL}/reviews`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        cache: "no-store",
+        body: JSON.stringify({
+          name: reviewForm.name.trim(),
+          rating: reviewForm.rating,
+          comment: reviewForm.comment.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || "Could not submit review");
+      }
+      setReviews((prev) => [data.data, ...prev]);
+      setReviewForm({ name: "", rating: 0, comment: "" });
+      setReviewFeedback("");
+      setIsReviewModalOpen(false);
+    } catch (err) {
+      setReviewFeedback(err.message || "Something went wrong.");
+    } finally {
+      setReviewSubmitting(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -676,21 +790,84 @@ export default function HomePage() {
         </div>
       </motion.section>
 
-      <motion.section {...fadeUp} className="mx-auto max-w-6xl px-4 pb-16">
-        <div className="rounded-3xl border border-slate-200 bg-gradient-to-r from-slate-900 to-slate-700 px-6 py-8 text-white transition md:px-10">
+      <motion.section {...fadeUp} className="mx-auto max-w-6xl px-4 pb-10">
+        <div className="rounded-3xl border border-slate-200 bg-gradient-to-r from-slate-900 to-slate-700 px-6 py-8 text-white transition md:px-10 md:py-10">
           <h3 className="text-2xl font-bold md:text-3xl">
             Ready To Buy Your Dream Car?
           </h3>
-          <p className="mt-2 max-w-2xl text-slate-200">
-            Select your favorite car from the hero and submit a request. Our team
-            will contact you with full details and best price options.
+          <p className="mt-2 max-w-xl text-slate-200">
+            Select your favorite car from the hero and submit a request. Our team will
+            contact you with full details and best price options.
           </p>
           <button
+            type="button"
             onClick={() => setIsFormOpen(true)}
             className="mt-5 rounded-full bg-white px-6 py-2.5 text-sm font-semibold text-slate-900 transition hover:-translate-y-0.5 hover:bg-slate-100"
           >
             Request for Buy
           </button>
+        </div>
+      </motion.section>
+
+      <motion.section {...fadeUp} className="mx-auto max-w-6xl px-4 pb-16">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-blue-700">
+                Reviews
+              </p>
+              <h3 className="text-xl font-bold text-slate-900">What buyers say</h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setReviewFeedback("");
+                setIsReviewModalOpen(true);
+              }}
+              className="inline-flex shrink-0 items-center justify-center rounded-full border border-slate-300 bg-slate-50 px-5 py-2.5 text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
+            >
+              Write a review
+            </button>
+          </div>
+          <div className="mt-6 flex gap-4 overflow-x-auto pb-2 pt-1 [scrollbar-width:thin] [scrollbar-color:rgb(148_163_184)_transparent]">
+            {reviews.length === 0 ? (
+              <p className="text-sm text-slate-500">
+                No reviews yet — be the first to share feedback.
+              </p>
+            ) : (
+              reviews.map((r) => (
+                <article
+                  key={r._id}
+                  className="min-w-[min(100%,260px)] max-w-[280px] shrink-0 rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-semibold text-slate-900">{r.name}</p>
+                    <span
+                      className="shrink-0 text-sm leading-none text-amber-500"
+                      aria-label={`${r.rating} out of 5 stars`}
+                    >
+                      {"★".repeat(r.rating)}
+                      <span className="text-slate-300">
+                        {"★".repeat(Math.max(0, 5 - r.rating))}
+                      </span>
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-700 line-clamp-5">
+                    {r.comment}
+                  </p>
+                  <p className="mt-3 text-[11px] text-slate-500">
+                    {r.createdAt
+                      ? new Date(r.createdAt).toLocaleDateString(undefined, {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })
+                      : ""}
+                  </p>
+                </article>
+              ))
+            )}
+          </div>
         </div>
       </motion.section>
 
@@ -822,14 +999,120 @@ export default function HomePage() {
         ) : null}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {isReviewModalOpen ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          >
+            <button
+              type="button"
+              aria-label="Close review form"
+              onClick={() => setIsReviewModalOpen(false)}
+              className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.98 }}
+              transition={{ duration: 0.22 }}
+              className="relative z-10 w-full max-w-lg overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
+            >
+              <div className="border-b border-slate-200 bg-slate-50 px-6 py-5">
+                <h3 className="text-xl font-semibold text-slate-900">Write a review</h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  Share your experience with other buyers.
+                </p>
+              </div>
+              <div className="p-6">
+                <div className="mb-5 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setIsReviewModalOpen(false)}
+                    className="rounded-full border border-slate-300 px-4 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                  >
+                    Close
+                  </button>
+                </div>
+                <form onSubmit={handleReviewSubmit} className="space-y-4">
+                  <div>
+                    <label
+                      htmlFor="review-modal-name"
+                      className="mb-1 block text-sm font-medium text-slate-700"
+                    >
+                      Your name
+                    </label>
+                    <input
+                      id="review-modal-name"
+                      value={reviewForm.name}
+                      onChange={(e) =>
+                        setReviewForm((p) => ({ ...p, name: e.target.value }))
+                      }
+                      placeholder="Your name"
+                      required
+                      minLength={2}
+                      maxLength={100}
+                      className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-400/30"
+                    />
+                  </div>
+                  <div>
+                    <p className="mb-1 text-sm font-medium text-slate-700">Your rating</p>
+                    <StarRatingInput
+                      variant="light"
+                      value={reviewForm.rating}
+                      onChange={(n) =>
+                        setReviewForm((p) => ({ ...p, rating: n }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="review-modal-comment"
+                      className="mb-1 block text-sm font-medium text-slate-700"
+                    >
+                      Your review
+                    </label>
+                    <textarea
+                      id="review-modal-comment"
+                      value={reviewForm.comment}
+                      onChange={(e) =>
+                        setReviewForm((p) => ({ ...p, comment: e.target.value }))
+                      }
+                      placeholder="Tell others about your experience..."
+                      required
+                      minLength={5}
+                      maxLength={800}
+                      rows={4}
+                      className="w-full resize-none rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-400/30"
+                    />
+                  </div>
+                  {reviewFeedback ? (
+                    <p className="text-sm font-medium text-red-600">{reviewFeedback}</p>
+                  ) : null}
+                  <button
+                    type="submit"
+                    disabled={reviewSubmitting}
+                    className="w-full rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white transition hover:bg-black disabled:opacity-60"
+                  >
+                    {reviewSubmitting ? "Submitting…" : "Submit review"}
+                  </button>
+                </form>
+              </div>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
       <motion.div
         initial={{ opacity: 0, x: 28 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ delay: 0.6, duration: 0.45, ease: "easeOut" }}
         className={`fixed bottom-6 right-4 z-40 flex flex-col gap-3 md:bottom-8 md:right-6 ${
-          isFormOpen ? "hidden" : ""
+          isFormOpen || isReviewModalOpen ? "hidden" : ""
         }`}
-        aria-hidden={isFormOpen}
+        aria-hidden={isFormOpen || isReviewModalOpen}
       >
         <a
           href={WHATSAPP_URL}
