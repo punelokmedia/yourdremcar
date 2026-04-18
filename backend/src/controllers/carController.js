@@ -2,6 +2,7 @@ import Car from "../models/Car.js";
 import cloudinary, {
   isCloudinaryConfigured,
 } from "../config/cloudinary.js";
+import { del as deleteBlob, put as putBlob } from "@vercel/blob";
 import fs from "fs/promises";
 import path from "path";
 
@@ -33,7 +34,7 @@ const isServerlessRuntime = () =>
   );
 
 const SERVERLESS_UPLOAD_MESSAGE =
-  "Image storage on this host requires Cloudinary. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in the server environment (Vercel: Project Settings → Environment Variables). Optional: CAR_USE_CLOUDINARY=true.";
+  "Image upload failed. On Vercel: add BLOB_READ_WRITE_TOKEN (Vercel → Storage → Blob), or fix Cloudinary keys (CLOUDINARY_*). Local disk is not available on serverless.";
 
 const saveImageLocally = async (fileBuffer, originalName = "car-image.jpg") => {
   const uploadsDir = path.join(process.cwd(), "uploads");
@@ -44,6 +45,102 @@ const saveImageLocally = async (fileBuffer, originalName = "car-image.jpg") => {
   const filePath = path.join(uploadsDir, fileName);
   await fs.writeFile(filePath, fileBuffer);
   return fileName;
+};
+
+const isBlobConfigured = () => Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim());
+
+const uploadBufferToVercelBlob = async (fileBuffer, originalName = "car.jpg") => {
+  const ext = path.extname(originalName) || ".jpg";
+  const safeExt = ext.slice(0, 8);
+  const pathname = `car-sells/car-${Date.now()}-${Math.random().toString(36).slice(2, 10)}${safeExt}`;
+  const token = process.env.BLOB_READ_WRITE_TOKEN?.trim();
+  if (!token) throw new Error("BLOB_READ_WRITE_TOKEN missing");
+  const lower = safeExt.toLowerCase();
+  const contentType =
+    lower === ".png"
+      ? "image/png"
+      : lower === ".webp"
+        ? "image/webp"
+        : lower === ".gif"
+          ? "image/gif"
+          : "image/jpeg";
+  const result = await putBlob(pathname, fileBuffer, {
+    access: "public",
+    token,
+    contentType,
+  });
+  return result.url;
+};
+
+const deleteBlobImageIfAny = async (imageUrl) => {
+  if (!imageUrl || typeof imageUrl !== "string") return;
+  if (!imageUrl.includes("blob.vercel-storage.com")) return;
+  const token = process.env.BLOB_READ_WRITE_TOKEN?.trim();
+  if (!token) return;
+  try {
+    await deleteBlob(imageUrl, { token });
+  } catch {
+    /* ignore */
+  }
+};
+
+/** After a new image is saved, remove the previous asset (Cloudinary / Blob / local). */
+const deleteStoredImage = async (imageUrl, imagePublicId) => {
+  if (imagePublicId && isCloudinaryConfigured()) {
+    try {
+      await cloudinary.uploader.destroy(imagePublicId);
+      return;
+    } catch {
+      /* fall through */
+    }
+  }
+  await deleteBlobImageIfAny(imageUrl);
+  await deleteLocalImageIfAny(imageUrl);
+};
+
+/**
+ * Cloudinary (if configured) → else Vercel Blob (if BLOB_READ_WRITE_TOKEN) → else local disk (non-serverless only).
+ */
+const persistUploadedFile = async (fileBuffer, originalName, req) => {
+  let warning = "";
+  if (shouldUseCloudinaryUpload()) {
+    try {
+      const uploaded = await uploadImageToCloudinary(fileBuffer);
+      return {
+        imageUrl: uploaded.secure_url,
+        imagePublicId: uploaded.public_id,
+        warning: "",
+      };
+    } catch (uploadError) {
+      logCloudinaryFailure(uploadError);
+      warning = "Cloudinary upload failed; trying other storage. ";
+    }
+  }
+  if (isBlobConfigured()) {
+    try {
+      const url = await uploadBufferToVercelBlob(fileBuffer, originalName);
+      return {
+        imageUrl: url,
+        imagePublicId: "",
+        warning: warning ? `${warning.trim()} Stored with Vercel Blob.` : undefined,
+      };
+    } catch (blobErr) {
+      console.error("Vercel Blob upload error:", blobErr);
+      warning += `Vercel Blob failed: ${blobErr.message}. `;
+    }
+  }
+  if (!isServerlessRuntime()) {
+    const localFileName = await saveImageLocally(fileBuffer, originalName);
+    const baseUrl = getPublicBaseUrl(req);
+    return {
+      imageUrl: `${baseUrl}/uploads/${localFileName}`,
+      imagePublicId: "",
+      warning: warning ? `${warning.trim()} Saved under ./uploads on this machine.` : undefined,
+    };
+  }
+  throw new Error(
+    `${warning} ${SERVERLESS_UPLOAD_MESSAGE}`
+  );
 };
 
 /** Public origin for stored image URLs (Vercel: prefer PUBLIC_BASE_URL or VERCEL_URL over internal host). */
@@ -271,43 +368,20 @@ export const createCar = async (req, res, next) => {
       typeof req.body.imagePublicId === "string" ? req.body.imagePublicId.trim() : "";
 
     if (req.file?.buffer) {
-      if (shouldUseCloudinaryUpload()) {
-        try {
-          const uploaded = await uploadImageToCloudinary(req.file.buffer);
-          carData.imageUrl = uploaded.secure_url;
-          carData.imagePublicId = uploaded.public_id;
-        } catch (uploadError) {
-          if (isServerlessRuntime()) {
-            logCloudinaryFailure(uploadError);
-            return res.status(503).json({
-              success: false,
-              message: `${getCloudinaryFailureClientMessage(
-                uploadError
-              )} Cannot fall back to disk on this host.`,
-            });
-          }
-          const localFileName = await saveImageLocally(
-            req.file.buffer,
-            req.file.originalname || "car-image.jpg"
-          );
-          const baseUrl = getPublicBaseUrl(req);
-          carData.imageUrl = `${baseUrl}/uploads/${localFileName}`;
-          logCloudinaryFailure(uploadError);
-          uploadWarning =
-            "Cloudinary upload failed. Image saved on local server storage.";
-        }
-      } else if (isServerlessRuntime()) {
+      try {
+        const persisted = await persistUploadedFile(
+          req.file.buffer,
+          req.file.originalname || "car-image.jpg",
+          req
+        );
+        carData.imageUrl = persisted.imageUrl;
+        carData.imagePublicId = persisted.imagePublicId;
+        if (persisted.warning) uploadWarning = persisted.warning;
+      } catch (e) {
         return res.status(503).json({
           success: false,
-          message: SERVERLESS_UPLOAD_MESSAGE,
+          message: e.message || "Image upload failed",
         });
-      } else {
-        const localFileName = await saveImageLocally(
-          req.file.buffer,
-          req.file.originalname || "car-image.jpg"
-        );
-        const baseUrl = getPublicBaseUrl(req);
-        carData.imageUrl = `${baseUrl}/uploads/${localFileName}`;
       }
     } else if (clientImageUrl) {
       if (!isTrustedCloudinaryImageUrl(clientImageUrl)) {
@@ -356,59 +430,23 @@ export const updateCar = async (req, res, next) => {
       typeof req.body.imagePublicId === "string" ? req.body.imagePublicId.trim() : "";
 
     if (req.file?.buffer) {
-      if (shouldUseCloudinaryUpload()) {
-        try {
-          const uploaded = await uploadImageToCloudinary(req.file.buffer);
-          carData.imageUrl = uploaded.secure_url;
-          carData.imagePublicId = uploaded.public_id;
-
-          if (car.imagePublicId) {
-            await cloudinary.uploader.destroy(car.imagePublicId);
-          } else {
-            await deleteLocalImageIfAny(car.imageUrl);
-          }
-        } catch (uploadError) {
-          if (isServerlessRuntime()) {
-            logCloudinaryFailure(uploadError);
-            return res.status(503).json({
-              success: false,
-              message: `${getCloudinaryFailureClientMessage(
-                uploadError
-              )} Cannot fall back to disk on this host.`,
-            });
-          }
-          const localFileName = await saveImageLocally(
-            req.file.buffer,
-            req.file.originalname || "car-image.jpg"
-          );
-          const baseUrl = getPublicBaseUrl(req);
-          carData.imageUrl = `${baseUrl}/uploads/${localFileName}`;
-          carData.imagePublicId = "";
-
-          if (car.imagePublicId) {
-            await cloudinary.uploader.destroy(car.imagePublicId);
-          } else {
-            await deleteLocalImageIfAny(car.imageUrl);
-          }
-
-          uploadWarning =
-            "Cloudinary upload failed. New image saved on local server storage.";
-          logCloudinaryFailure(uploadError);
-        }
-      } else if (isServerlessRuntime()) {
+      const oldUrl = car.imageUrl;
+      const oldPid = car.imagePublicId;
+      try {
+        const persisted = await persistUploadedFile(
+          req.file.buffer,
+          req.file.originalname || "car-image.jpg",
+          req
+        );
+        carData.imageUrl = persisted.imageUrl;
+        carData.imagePublicId = persisted.imagePublicId;
+        if (persisted.warning) uploadWarning = persisted.warning;
+        await deleteStoredImage(oldUrl, oldPid);
+      } catch (e) {
         return res.status(503).json({
           success: false,
-          message: SERVERLESS_UPLOAD_MESSAGE,
+          message: e.message || "Image upload failed",
         });
-      } else {
-        const localFileName = await saveImageLocally(
-          req.file.buffer,
-          req.file.originalname || "car-image.jpg"
-        );
-        const baseUrl = getPublicBaseUrl(req);
-        carData.imageUrl = `${baseUrl}/uploads/${localFileName}`;
-        carData.imagePublicId = "";
-        await deleteLocalImageIfAny(car.imageUrl);
       }
     } else if (clientImageUrl) {
       if (!isTrustedCloudinaryImageUrl(clientImageUrl)) {
@@ -418,17 +456,11 @@ export const updateCar = async (req, res, next) => {
             "Invalid image URL. Use browser upload with your Cloudinary cloud name, or upload a file.",
         });
       }
+      const oldUrl = car.imageUrl;
+      const oldPid = car.imagePublicId;
       carData.imageUrl = clientImageUrl;
       carData.imagePublicId = clientPublicId;
-      if (car.imagePublicId) {
-        try {
-          await cloudinary.uploader.destroy(car.imagePublicId);
-        } catch (_e) {
-          /* ignore */
-        }
-      } else {
-        await deleteLocalImageIfAny(car.imageUrl);
-      }
+      await deleteStoredImage(oldUrl, oldPid);
     }
 
     Object.assign(car, carData);
@@ -451,15 +483,7 @@ export const deleteCar = async (req, res, next) => {
       return res.status(404).json({ success: false, message: "Car not found" });
     }
 
-    if (car.imagePublicId && isCloudinaryConfigured()) {
-      try {
-        await cloudinary.uploader.destroy(car.imagePublicId);
-      } catch (_err) {
-        // Continue delete even if Cloudinary cleanup fails
-      }
-    } else {
-      await deleteLocalImageIfAny(car.imageUrl);
-    }
+    await deleteStoredImage(car.imageUrl, car.imagePublicId);
 
     await car.deleteOne();
     return res.status(200).json({ success: true, message: "Car deleted" });
