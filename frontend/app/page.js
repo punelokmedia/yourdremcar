@@ -37,7 +37,6 @@ const buildCarDetailsUrl = (car) => {
     name: car.name,
     year: car.year,
     price: car.price,
-    image: car.image,
     fuelType: car.category || "",
     ownership: car.ownership || "",
     note: "Premium maintained condition with complete inspection support.",

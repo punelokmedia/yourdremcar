@@ -27,8 +27,12 @@ export default async function CarDetailsPage({ searchParams }) {
   const price = Number.isFinite(Number(carFromApi?.price))
     ? `Rs ${new Intl.NumberFormat("en-IN").format(Number(carFromApi.price))}`
     : params?.price || "Price on request";
+  const isSafeParamImage =
+    typeof params?.image === "string" &&
+    params.image.startsWith("https://") &&
+    !params.image.includes("localhost");
   const image = resolveCarImageUrl(
-    carFromApi?.imageUrl || params?.image || "",
+    carFromApi?.imageUrl || (isSafeParamImage ? params.image : ""),
     API_URL
   );
   const fuelType = carFromApi?.fuelType || params?.fuelType || "N/A";
