@@ -1,3 +1,5 @@
+import { resolveCarImageUrl } from "../../lib/resolveCarImageUrl";
+
 export default async function CarDetailsPage({ searchParams }) {
   const params = await searchParams;
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
@@ -25,7 +27,10 @@ export default async function CarDetailsPage({ searchParams }) {
   const price = Number.isFinite(Number(carFromApi?.price))
     ? `Rs ${new Intl.NumberFormat("en-IN").format(Number(carFromApi.price))}`
     : params?.price || "Price on request";
-  const image = carFromApi?.imageUrl || params?.image || "";
+  const image = resolveCarImageUrl(
+    carFromApi?.imageUrl || params?.image || "",
+    API_URL
+  );
   const fuelType = carFromApi?.fuelType || params?.fuelType || "N/A";
   const ownership =
     carFromApi?.ownership || params?.ownership || "Single Owner";

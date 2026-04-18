@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
+import { resolveCarImageUrl } from "../lib/resolveCarImageUrl";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 const normalizeCar = (car) => ({
@@ -11,7 +12,7 @@ const normalizeCar = (car) => ({
   price: Number.isFinite(Number(car.price))
     ? `Rs ${new Intl.NumberFormat("en-IN").format(Number(car.price))}`
     : "Price on request",
-  image: car.imageUrl || "",
+  image: resolveCarImageUrl(car.imageUrl || "", API_URL),
   ownership: car.ownership || "Single Owner",
 });
 const buildCarDetailsUrl = (car) => {

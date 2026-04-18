@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { resolveCarImageUrl } from "../lib/resolveCarImageUrl";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 const galleryFilters = ["All", "Petrol", "CNG"];
@@ -15,7 +16,7 @@ const normalizeCar = (car) => ({
   name: car.title || `${car.brand || ""} ${car.model || ""}`.trim() || "Car Listing",
   year: car.year ? String(car.year) : "N/A",
   price: formatPrice(car.price),
-  image: car.imageUrl || "",
+  image: resolveCarImageUrl(car.imageUrl || "", API_URL),
   category: car.fuelType || "Unknown",
   ownership: car.ownership || "Single Owner",
 });

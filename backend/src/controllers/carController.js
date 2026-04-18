@@ -33,6 +33,18 @@ const saveImageLocally = async (fileBuffer, originalName = "car-image.jpg") => {
   return fileName;
 };
 
+/** Public origin for stored image URLs (Vercel: prefer PUBLIC_BASE_URL or VERCEL_URL over internal host). */
+const getPublicBaseUrl = (req) => {
+  const explicit = process.env.PUBLIC_BASE_URL?.trim()?.replace(/\/$/, "");
+  if (explicit) return explicit;
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  const host = req.get("x-forwarded-host") || req.get("host");
+  const proto = req.get("x-forwarded-proto") || req.protocol;
+  return `${proto}://${host}`;
+};
+
 const getLocalImageFileFromUrl = (imageUrl) => {
   if (!imageUrl) return "";
   try {
@@ -180,7 +192,7 @@ export const createCar = async (req, res, next) => {
             req.file.buffer,
             req.file.originalname || "car-image.jpg"
           );
-          const baseUrl = `${req.protocol}://${req.get("host")}`;
+          const baseUrl = getPublicBaseUrl(req);
           carData.imageUrl = `${baseUrl}/uploads/${localFileName}`;
           logCloudinaryFailure(uploadError);
           uploadWarning =
@@ -191,7 +203,7 @@ export const createCar = async (req, res, next) => {
           req.file.buffer,
           req.file.originalname || "car-image.jpg"
         );
-        const baseUrl = `${req.protocol}://${req.get("host")}`;
+        const baseUrl = getPublicBaseUrl(req);
         carData.imageUrl = `${baseUrl}/uploads/${localFileName}`;
       }
     }
@@ -242,7 +254,7 @@ export const updateCar = async (req, res, next) => {
             req.file.buffer,
             req.file.originalname || "car-image.jpg"
           );
-          const baseUrl = `${req.protocol}://${req.get("host")}`;
+          const baseUrl = getPublicBaseUrl(req);
           carData.imageUrl = `${baseUrl}/uploads/${localFileName}`;
           carData.imagePublicId = "";
 
@@ -261,7 +273,7 @@ export const updateCar = async (req, res, next) => {
           req.file.buffer,
           req.file.originalname || "car-image.jpg"
         );
-        const baseUrl = `${req.protocol}://${req.get("host")}`;
+        const baseUrl = getPublicBaseUrl(req);
         carData.imageUrl = `${baseUrl}/uploads/${localFileName}`;
         carData.imagePublicId = "";
         await deleteLocalImageIfAny(car.imageUrl);
