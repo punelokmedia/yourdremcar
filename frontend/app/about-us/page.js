@@ -120,7 +120,7 @@ export default function AboutUsPage() {
         className="border-b border-slate-200 bg-gradient-to-b from-slate-50/80 to-white"
       >
         <div className="mx-auto max-w-6xl px-4 py-14 md:py-16">
-          <div className="flex flex-col items-center gap-10 md:flex-row md:items-center md:gap-12 lg:gap-14">
+          <div className="flex flex-col items-center gap-10 md:flex-row md:items-start md:gap-12 lg:gap-14">
             <div className="relative aspect-[4/5] w-full max-w-[min(98vw,520px)] shrink-0 overflow-hidden rounded-2xl shadow-2xl ring-1 ring-slate-200/90 sm:max-w-[580px] md:max-w-[min(680px,58vw)] lg:max-w-[720px]">
               <Image
                 src="/akshay-c-pardhan.png"
@@ -131,7 +131,7 @@ export default function AboutUsPage() {
                 priority
               />
             </div>
-            <div className="max-w-xl text-center md:text-left">
+            <div className="max-w-xl text-center md:self-start md:text-left">
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-700">
                 Leadership
               </p>

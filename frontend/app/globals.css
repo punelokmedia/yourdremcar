@@ -1,17 +1,14 @@
 @import "tailwindcss";
 
-/* Mobile: avoid iOS/Android scroll fighting — one document scroller, stable viewport units */
+/* Single page scrollbar: do not set overflow-y on body (that + html height caused double scrollbars). */
 html {
   overflow-x: clip;
-  height: 100%;
   -webkit-text-size-adjust: 100%;
 }
 
 body {
-  min-height: 100%;
   min-height: 100dvh;
   overflow-x: clip;
-  overflow-y: auto;
   background-color: #ffffff;
   color: #0f172a;
   -webkit-font-smoothing: antialiased;
