@@ -5,8 +5,7 @@ import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 
 const ADMIN_EMAIL = "yourdreamcars1806@gmail.com";
-const ADMIN_PASSWORD = "yourdremcar123";
-const ADMIN_PASSWORD_ALTERNATE = "yourdreamcar123";
+const ADMIN_PASSWORD = "Mona@1806";
 const ADMIN_AUTH_KEY = "ydc_admin_logged_in";
 
 export default function AdminLoginPage() {
@@ -31,9 +30,7 @@ export default function AdminLoginPage() {
     const normalizedEmail = email.trim().toLowerCase();
     const normalizedPassword = password.trim();
     const isValid =
-      normalizedEmail === ADMIN_EMAIL &&
-      (normalizedPassword === ADMIN_PASSWORD ||
-        normalizedPassword === ADMIN_PASSWORD_ALTERNATE);
+      normalizedEmail === ADMIN_EMAIL && normalizedPassword === ADMIN_PASSWORD;
 
     setTimeout(() => {
       if (!isValid) {
