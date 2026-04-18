@@ -58,6 +58,32 @@ const getPublicBaseUrl = (req) => {
   return `${proto}://${host}`;
 };
 
+/** DB me purane `http://localhost:5000/uploads/...` ko production par reachable URL me badal kar bhejta hai. */
+const rewriteLocalhostImageUrl = (imageUrl, req) => {
+  if (!imageUrl || typeof imageUrl !== "string") return imageUrl;
+  try {
+    const u = new URL(imageUrl);
+    const h = u.hostname.toLowerCase();
+    if (h === "localhost" || h === "127.0.0.1") {
+      const base = getPublicBaseUrl(req);
+      return `${base}${u.pathname}${u.search}${u.hash}`;
+    }
+  } catch {
+    // ignore
+  }
+  return imageUrl;
+};
+
+const carForJson = (car, req) => {
+  if (!car) return car;
+  const plain =
+    typeof car.toObject === "function" ? car.toObject() : { ...car };
+  if (plain.imageUrl) {
+    plain.imageUrl = rewriteLocalhostImageUrl(plain.imageUrl, req);
+  }
+  return plain;
+};
+
 const getLocalImageFileFromUrl = (imageUrl) => {
   if (!imageUrl) return "";
   try {
@@ -203,10 +229,11 @@ const getValidatedCarData = (payload) => {
   };
 };
 
-export const getCars = async (_req, res, next) => {
+export const getCars = async (req, res, next) => {
   try {
     const cars = await Car.find().sort({ createdAt: -1 }).lean();
-    res.status(200).json({ success: true, data: cars });
+    const data = cars.map((c) => carForJson(c, req));
+    res.status(200).json({ success: true, data });
   } catch (error) {
     next(error);
   }
@@ -268,7 +295,7 @@ export const createCar = async (req, res, next) => {
     const car = await Car.create(carData);
     res.status(201).json({
       success: true,
-      data: car,
+      data: carForJson(car, req),
       warning: uploadWarning || undefined,
     });
   } catch (error) {
@@ -356,7 +383,7 @@ export const updateCar = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      data: car,
+      data: carForJson(car, req),
       warning: uploadWarning || undefined,
     });
   } catch (error) {

@@ -21,23 +21,43 @@ function effectiveApiBase(apiUrl) {
 }
 
 /**
- * Maps localhost / relative upload URLs to the deployed API origin (NEXT_PUBLIC_API_URL).
+ * Origin used to turn localhost/relative upload paths into absolute URLs on deploy.
+ * - Full NEXT_PUBLIC_API_URL → backend origin
+ * - Same-origin proxy (/api + rewrites): use NEXT_PUBLIC_SITE_ORIGIN or browser origin
+ */
+function getImagePublicOrigin(apiUrl) {
+  const base = effectiveApiBase(apiUrl);
+  const fromApi = getApiOrigin(base);
+  if (fromApi) return fromApi;
+
+  const site =
+    typeof process !== "undefined"
+      ? process.env.NEXT_PUBLIC_SITE_ORIGIN?.trim()?.replace(/\/$/, "")
+      : "";
+  if (site) return site;
+
+  if (typeof window !== "undefined") {
+    return window.location.origin;
+  }
+
+  return "";
+}
+
+/**
+ * Maps localhost / relative upload URLs to a working HTTPS URL on production.
  * Leaves Cloudinary and other absolute URLs unchanged.
  */
 export function resolveCarImageUrl(imageUrl, apiUrl) {
   if (!imageUrl || typeof imageUrl !== "string") return "";
-  const base = effectiveApiBase(apiUrl);
-  const origin = getApiOrigin(base);
+  const publicOrigin = getImagePublicOrigin(apiUrl);
 
   let trim = imageUrl.trim().replace(/\u00a0/g, "");
   if (!trim) return "";
 
-  // Protocol-relative (//res.cloudinary.com/...)
   if (trim.startsWith("//")) {
     trim = `https:${trim}`;
   }
 
-  // Common mistake: "res.cloudinary.com/..." without scheme
   if (
     !/^https?:\/\//i.test(trim) &&
     (trim.startsWith("res.cloudinary.com/") || trim.includes("res.cloudinary.com/"))
@@ -52,17 +72,16 @@ export function resolveCarImageUrl(imageUrl, apiUrl) {
       return `https://${u.host}${u.pathname}${u.search}${u.hash}`;
     }
     if (h === "localhost" || h === "127.0.0.1") {
-      if (origin) return `${origin}${u.pathname}${u.search}${u.hash}`;
+      if (publicOrigin) return `${publicOrigin}${u.pathname}${u.search}${u.hash}`;
       return `${u.pathname}${u.search}${u.hash}`;
     }
     return trim;
   } catch {
     if (trim.startsWith("/uploads/")) {
-      return origin ? `${origin}${trim}` : trim;
+      return publicOrigin ? `${publicOrigin}${trim}` : trim;
     }
-    // Bare filename stored by mistake — only when it looks like our upload names
-    if (/^car-\d+-[a-z0-9]+\.(png|jpe?g|webp)$/i.test(trim) && origin) {
-      return `${origin}/uploads/${trim}`;
+    if (/^car-\d+-[a-z0-9]+\.(png|jpe?g|webp)$/i.test(trim) && publicOrigin) {
+      return `${publicOrigin}/uploads/${trim}`;
     }
     return trim;
   }
