@@ -9,9 +9,10 @@ import {
 
 const router = express.Router();
 
+// Vercel serverless request body limit is ~4.5 MB total — stay under it or upload fails with 413.
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 8 * 1024 * 1024 },
+  limits: { fileSize: 4 * 1024 * 1024 },
 });
 
 router.get("/", getCars);

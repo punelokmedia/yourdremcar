@@ -255,7 +255,18 @@ export default function AdminDashboardPage() {
         }
       );
 
-      const data = await response.json();
+      const ct = response.headers.get("content-type") || "";
+      let data;
+      if (ct.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(
+          response.status === 413
+            ? "Image too large for the server (max ~4 MB). Compress the file or pick a smaller photo."
+            : text?.slice(0, 200) || `Request failed (${response.status})`
+        );
+      }
       if (!response.ok) {
         throw new Error(data.message || "Failed to save car");
       }
@@ -987,7 +998,7 @@ export default function AdminDashboardPage() {
                         <p className="text-xs font-normal text-slate-500">
                           {editingCarId
                             ? "Upload a new image only if you want to replace current one."
-                            : "Best result: clear front-angle image under 5MB."}
+                            : "Best result: clear front-angle image under 4 MB (Vercel limit)."}
                         </p>
                         {newCarForm.image ? (
                           <p className="text-xs font-medium text-slate-700">

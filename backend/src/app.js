@@ -7,6 +7,7 @@ import carRoutes from "./routes/carRoutes.js";
 import buyRequestRoutes from "./routes/buyRequestRoutes.js";
 import contactQueryRoutes from "./routes/contactQueryRoutes.js";
 import errorHandler from "./middlewares/errorHandler.js";
+import cloudinary, { isCloudinaryConfigured } from "./config/cloudinary.js";
 
 const app = express();
 const __filename = fileURLToPath(import.meta.url);
@@ -45,7 +46,8 @@ app.use(
   cors({
     origin: corsOrigin,
     methods: ["GET", "HEAD", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Accept", "Authorization"],
+    // Do not pin allowedHeaders — let the cors package reflect
+    // Access-Control-Request-Headers so multipart/form-data preflight succeeds.
   })
 );
 app.use(express.json({ limit: "1mb" }));
@@ -53,6 +55,33 @@ app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
 app.get("/", (_req, res) => {
   res.json({ success: true, message: "Car Sells API running" });
+});
+
+/** Debug Cloudinary credentials on the deployed server (no upload). */
+app.get("/api/health/cloudinary", async (_req, res) => {
+  if (!isCloudinaryConfigured()) {
+    return res.status(200).json({
+      success: true,
+      configured: false,
+      message:
+        "Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET (backend Vercel project).",
+    });
+  }
+  try {
+    await cloudinary.api.ping();
+    return res.json({ success: true, configured: true, auth: "ok" });
+  } catch (err) {
+    const code = err.http_code ?? err.statusCode;
+    return res.status(503).json({
+      success: false,
+      configured: true,
+      auth: "failed",
+      message: err.message,
+      httpCode: code,
+      hint:
+        "401/403: Keys do not match this cloud, or CLOUDINARY_URL in Vercel conflicts — delete CLOUDINARY_URL and use only the three vars from Cloudinary → Settings → API Keys (same product). Redeploy.",
+    });
+  }
 });
 
 app.use("/api/cars", carRoutes);

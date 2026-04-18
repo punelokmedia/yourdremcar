@@ -2,7 +2,7 @@ import { v2 as cloudinary } from "cloudinary";
 
 const normalizeEnv = (value) => {
   if (!value || typeof value !== "string") return "";
-  const trimmed = value.trim();
+  const trimmed = value.trim().replace(/^\uFEFF/, "");
   return trimmed.replace(/^["']|["']$/g, "");
 };
 
@@ -26,6 +26,8 @@ export const isCloudinaryConfigured = () =>
 
 if (isCloudinaryConfigured()) {
   if (hasExplicitTriple) {
+    // Never mix: if CLOUDINARY_URL is also set in the dashboard with old/wrong values,
+    // the SDK must only use the three explicit vars (see isCloudinaryConfigured).
     cloudinary.config({
       cloud_name: cloudName,
       api_key: apiKey,
