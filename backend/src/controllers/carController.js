@@ -26,7 +26,10 @@ const isServerlessRuntime = () =>
   Boolean(
     process.env.VERCEL ||
     process.env.AWS_LAMBDA_FUNCTION_NAME ||
-    process.env.NETLIFY
+    process.env.NETLIFY ||
+    process.env.RENDER ||
+    process.env.RAILWAY_ENVIRONMENT ||
+    process.env.FLY_APP_NAME
   );
 
 const SERVERLESS_UPLOAD_MESSAGE =
@@ -98,12 +101,21 @@ const logCloudinaryFailure = (uploadError) => {
 };
 
 /**
- * Cloudinary when configured and (explicit opt-in OR serverless — Vercel/Lambda cannot persist ./uploads).
- * Local dev: defaults to disk unless CAR_USE_CLOUDINARY=true.
+ * Cloudinary when credentials exist and disk is not reliable:
+ * - CAR_USE_CLOUDINARY=true, or
+ * - serverless (Vercel, Lambda, Render, Railway, …), or
+ * - NODE_ENV=production (Railway/Render/VPS — avoids ENOENT on read-only or missing ./uploads)
+ * Local `npm run dev`: NODE_ENV is usually development → fast local ./uploads unless CAR_USE_CLOUDINARY=true.
+ * Opt out of Cloudinary: CAR_USE_CLOUDINARY=false (needs writable ./uploads).
  */
-const shouldUseCloudinaryUpload = () =>
-  isCloudinaryConfigured() &&
-  (process.env.CAR_USE_CLOUDINARY === "true" || isServerlessRuntime());
+const shouldUseCloudinaryUpload = () => {
+  if (!isCloudinaryConfigured()) return false;
+  if (process.env.CAR_USE_CLOUDINARY === "false") return false;
+  if (process.env.CAR_USE_CLOUDINARY === "true") return true;
+  if (isServerlessRuntime()) return true;
+  if (process.env.NODE_ENV === "production") return true;
+  return false;
+};
 
 const OWNERSHIP_VALUES = [
   "Single Owner",
