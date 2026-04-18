@@ -1,12 +1,14 @@
-const DEFAULT_API_URL = "http://localhost:5000/api";
+const DEFAULT_API_URL =
+  process.env.NODE_ENV === "development" ? "http://localhost:5000/api" : "";
 
 function getApiOrigin(apiUrl) {
   const raw = (apiUrl || DEFAULT_API_URL).trim();
+  if (!raw) return "";
   try {
     const u = new URL(raw.includes("://") ? raw : `http://${raw}`);
     return u.origin;
   } catch {
-    return new URL(DEFAULT_API_URL).origin;
+    return "";
   }
 }
 
@@ -26,13 +28,18 @@ export function resolveCarImageUrl(imageUrl, apiUrl) {
   try {
     const u = new URL(trim);
     const h = u.hostname.toLowerCase();
+    if (u.protocol === "http:" && h !== "localhost" && h !== "127.0.0.1") {
+      // Force HTTPS in production to avoid browser "block/allow insecure content".
+      return `https://${u.host}${u.pathname}${u.search}${u.hash}`;
+    }
     if (h === "localhost" || h === "127.0.0.1") {
-      return `${origin}${u.pathname}${u.search}${u.hash}`;
+      if (origin) return `${origin}${u.pathname}${u.search}${u.hash}`;
+      return `${u.pathname}${u.search}${u.hash}`;
     }
     return trim;
   } catch {
     if (trim.startsWith("/uploads/")) {
-      return `${origin}${trim}`;
+      return origin ? `${origin}${trim}` : trim;
     }
     return trim;
   }
