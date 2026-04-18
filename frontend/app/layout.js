@@ -9,7 +9,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-white text-slate-900">
+      <body className="min-h-[100dvh] bg-white text-slate-900 antialiased">
         <SiteChrome>{children}</SiteChrome>
       </body>
     </html>

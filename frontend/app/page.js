@@ -26,10 +26,10 @@ const highlights = [
   { title: "Cities Covered", value: "45+" },
 ];
 const fadeUp = {
-  initial: { opacity: 0, y: 24 },
+  initial: { opacity: 0, y: 14 },
   whileInView: { opacity: 1, y: 0 },
-  viewport: { once: true, amount: 0.2 },
-  transition: { duration: 0.55, ease: "easeOut" },
+  viewport: { once: true, amount: 0.12, margin: "0px 0px -5% 0px" },
+  transition: { duration: 0.38, ease: [0.25, 0.1, 0.25, 1] },
 };
 const buildCarDetailsUrl = (car) => {
   const params = new URLSearchParams({
@@ -227,7 +227,7 @@ export default function HomePage() {
 
   return (
     <main className="w-full">
-      <section className="relative w-full min-h-[max(88vh,600px)] overflow-x-hidden">
+      <section className="relative w-full min-h-[max(85dvh,600px)] overflow-x-clip">
         {activeCar.image && !heroImageBroken ? (
           <img
             src={activeCar.image}

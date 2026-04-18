@@ -511,7 +511,7 @@ export default function AdminDashboardPage() {
           initial={{ x: -16, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           transition={{ type: "spring", stiffness: 220, damping: 24 }}
-          className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-200/70 bg-white/85 p-4 shadow-xl shadow-slate-200/40 backdrop-blur-lg transition lg:sticky lg:top-[69px] lg:h-[calc(100vh-69px)] lg:rounded-none lg:translate-x-0 lg:shadow-none ${
+          className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-200/70 bg-white/85 p-4 shadow-xl shadow-slate-200/40 backdrop-blur-md transition supports-[backdrop-filter]:bg-white/80 lg:sticky lg:top-[69px] lg:h-[calc(100dvh-69px)] lg:rounded-none lg:translate-x-0 lg:shadow-none lg:backdrop-blur-lg ${
             sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
           }`}
         >
@@ -843,7 +843,7 @@ export default function AdminDashboardPage() {
                     animate={{ opacity: 1, x: 0, scaleX: 1 }}
                     transition={{ duration: 0.28, ease: "easeOut" }}
                     style={{ transformOrigin: "right center" }}
-                    className="fixed right-4 top-3 z-50 h-[calc(100vh-2rem)] w-[min(540px,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl lg:right-6 lg:top-[76px] lg:h-[calc(100vh-100px)] lg:w-[min(560px,calc(100vw-24rem))]"
+                    className="fixed right-4 top-3 z-50 h-[calc(100dvh-2rem)] w-[min(540px,calc(100vw-2rem))] overflow-y-auto overscroll-y-contain rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl [-webkit-overflow-scrolling:touch] lg:right-6 lg:top-[76px] lg:h-[calc(100dvh-100px)] lg:w-[min(560px,calc(100vw-24rem))]"
                   >
                   <div className="mb-5 rounded-xl border border-slate-100 bg-slate-50/70 p-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">

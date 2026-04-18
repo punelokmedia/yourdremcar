@@ -22,7 +22,7 @@ export default function Navbar() {
       initial={{ opacity: 0, y: -18 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45 }}
-      className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 shadow-sm backdrop-blur-xl"
+      className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-white/90 lg:backdrop-blur-xl"
     >
       <header className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2.5">
         <a href="/" className="flex min-w-0 items-center gap-3 text-slate-900">
