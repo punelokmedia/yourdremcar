@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { resolveCarImageUrl } from "../lib/resolveCarImageUrl";
-import { getApiUrl } from "../lib/getApiUrl";
+import { resolveCarImageUrl } from "../../lib/resolveCarImageUrl";
+import { getApiUrl } from "../../lib/getApiUrl";
 
 const API_URL = getApiUrl();
 const normalizeCar = (car) => ({
