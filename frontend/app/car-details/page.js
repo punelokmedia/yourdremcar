@@ -1,8 +1,9 @@
 import { resolveCarImageUrl } from "../../lib/resolveCarImageUrl";
+import { getApiUrl } from "../../lib/getApiUrl";
 
 export default async function CarDetailsPage({ searchParams }) {
   const params = await searchParams;
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+  const API_URL = getApiUrl();
   const carId = params?.id;
   let carFromApi = null;
 

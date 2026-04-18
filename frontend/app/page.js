@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { resolveCarImageUrl } from "../lib/resolveCarImageUrl";
+import { getApiUrl } from "../lib/getApiUrl";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const API_URL = getApiUrl();
 const galleryFilters = ["All", "Petrol", "CNG"];
 const formatPrice = (value) => {
   const num = Number(value);

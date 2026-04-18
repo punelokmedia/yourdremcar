@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
+import { getApiUrl } from "../../../lib/getApiUrl";
 
 const ADMIN_AUTH_KEY = "ydc_admin_logged_in";
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const API_URL = getApiUrl();
 
 const menuItems = [
   { label: "Overview", icon: "◈", badge: null },
