@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { resolveCarImageUrl } from "../lib/resolveCarImageUrl";
-import { getApiUrl, MISSING_NEXT_PUBLIC_API_URL } from "../lib/getApiUrl";
+import { apiUrl, getApiUrl, MISSING_NEXT_PUBLIC_API_URL } from "../lib/getApiUrl";
 import {
   CONTACT_PHONE_DISPLAY,
   TEL_HREF,
@@ -125,6 +125,26 @@ export default function HomePage() {
     phone: "",
     carName: "",
   });
+  const [leadTab, setLeadTab] = useState("buy");
+  const [buyLead, setBuyLead] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    carName: "",
+  });
+  const [sellLead, setSellLead] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    carMakeModel: "",
+    year: "",
+    expectedPrice: "",
+    notes: "",
+  });
+  const [leadSubmitting, setLeadSubmitting] = useState(false);
+  const [leadMessage, setLeadMessage] = useState("");
+  const [leadError, setLeadError] = useState("");
+  const buyCarHintAppliedRef = useRef(false);
   const [reviews, setReviews] = useState([]);
   const [reviewForm, setReviewForm] = useState({
     name: "",
@@ -149,6 +169,14 @@ export default function HomePage() {
     if (activeGalleryFilter === "All") return galleryCars;
     return galleryCars.filter((car) => car.category === activeGalleryFilter);
   }, [activeGalleryFilter, galleryCars]);
+
+  useEffect(() => {
+    if (carsLoading || leadTab !== "buy" || buyCarHintAppliedRef.current) return;
+    const hint = activeCar?.name?.trim();
+    if (!hint) return;
+    buyCarHintAppliedRef.current = true;
+    setBuyLead((prev) => ({ ...prev, carName: prev.carName || hint }));
+  }, [carsLoading, activeCar?.name, leadTab]);
 
   useEffect(() => {
     let cancelled = false;
@@ -363,6 +391,124 @@ export default function HomePage() {
       setStatusMessage(error.message || "Something went wrong");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleLeadTabChange = (tab) => {
+    setLeadTab(tab);
+    setLeadMessage("");
+    setLeadError("");
+    if (tab === "buy") {
+      setBuyLead((prev) => ({
+        ...prev,
+        carName: activeCar?.name || prev.carName,
+      }));
+    }
+  };
+
+  const handleBuyLeadSubmit = async (e) => {
+    e.preventDefault();
+    setLeadSubmitting(true);
+    setLeadMessage("");
+    setLeadError("");
+    try {
+      const API_URL = getApiUrl();
+      if (!API_URL) {
+        setLeadError(MISSING_NEXT_PUBLIC_API_URL);
+        return;
+      }
+      const res = await fetch(`${API_URL}/buy-requests`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        cache: "no-store",
+        body: JSON.stringify(buyLead),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to submit request");
+      }
+      setLeadMessage(
+        "🙏 Thank you! Your buy request was sent. Our team will call you soon."
+      );
+      setBuyLead((prev) => ({
+        ...prev,
+        name: "",
+        email: "",
+        phone: "",
+        carName: activeCar?.name || "",
+      }));
+    } catch (error) {
+      setLeadError(error.message || "Something went wrong");
+    } finally {
+      setLeadSubmitting(false);
+    }
+  };
+
+  const handleSellLeadSubmit = async (e) => {
+    e.preventDefault();
+    setLeadSubmitting(true);
+    setLeadMessage("");
+    setLeadError("");
+    try {
+      const API_URL = getApiUrl();
+      if (!API_URL) {
+        setLeadError(MISSING_NEXT_PUBLIC_API_URL);
+        return;
+      }
+      const payload = {
+        name: String(sellLead.name || "").trim(),
+        email: String(sellLead.email || "").trim(),
+        phone: String(sellLead.phone || "").trim(),
+        carMakeModel: String(sellLead.carMakeModel || "").trim(),
+        year: String(sellLead.year || "").trim(),
+        expectedPrice: String(sellLead.expectedPrice || "").trim(),
+        notes: String(sellLead.notes || "").trim(),
+      };
+      const res = await fetch(apiUrl("sell-requests"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        cache: "no-store",
+        body: JSON.stringify(payload),
+      });
+      const raw = await res.text();
+      let data = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        throw new Error(
+          raw?.startsWith("<")
+            ? "Server returned an error page. Check NEXT_PUBLIC_API_URL and that the backend is deployed with /api/sell-requests."
+            : "Invalid response from server"
+        );
+      }
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to submit");
+      }
+      setLeadMessage(
+        "🙏 Thank you! We received your car details. We will contact you shortly."
+      );
+      setSellLead({
+        name: "",
+        email: "",
+        phone: "",
+        carMakeModel: "",
+        year: "",
+        expectedPrice: "",
+        notes: "",
+      });
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("sell-requests-changed"));
+      }
+    } catch (error) {
+      setLeadError(error.message || "Something went wrong");
+    } finally {
+      setLeadSubmitting(false);
     }
   };
 
@@ -949,6 +1095,264 @@ export default function HomePage() {
             {statusMessage}
           </p>
         ) : null}
+      </motion.section>
+
+      <motion.section
+        {...fadeUp}
+        id="request-buy-sell"
+        className="mx-auto max-w-6xl scroll-mt-28 px-4 pb-10"
+      >
+        <div className="relative overflow-hidden rounded-3xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/95 via-white to-cyan-50/90 p-6 shadow-xl shadow-emerald-100/50 md:p-10">
+          <div className="pointer-events-none absolute -right-20 -top-24 h-56 w-56 rounded-full bg-teal-200/40 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-20 -left-16 h-48 w-48 rounded-full bg-emerald-200/35 blur-3xl" />
+
+          <div className="relative">
+            <p className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-800">
+              <span aria-hidden>🙏</span> Let us help you
+            </p>
+            <h2 className="mt-3 text-2xl font-bold text-slate-900 md:text-3xl">
+              Request to buy or sell your car
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm text-slate-600">
+              Fill one short form — your details go straight to our admin team. We will get back to you
+              with the next steps.
+            </p>
+
+            <div className="mt-6 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => handleLeadTabChange("buy")}
+                className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                  leadTab === "buy"
+                    ? "border-emerald-600 bg-emerald-600 text-white shadow-md shadow-emerald-200/70"
+                    : "border-emerald-200 bg-white/90 text-slate-700 hover:border-emerald-300"
+                }`}
+              >
+                <span aria-hidden>🛒</span> Request to buy
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLeadTabChange("sell")}
+                className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                  leadTab === "sell"
+                    ? "border-teal-600 bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-md shadow-teal-200/60"
+                    : "border-emerald-200 bg-white/90 text-slate-700 hover:border-emerald-300"
+                }`}
+              >
+                <span aria-hidden>🚗</span> Sell your car
+              </button>
+            </div>
+
+            {leadMessage ? (
+              <p className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/90 px-4 py-3 text-sm font-medium text-emerald-900">
+                {leadMessage}
+              </p>
+            ) : null}
+            {leadError ? (
+              <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                {leadError}
+              </p>
+            ) : null}
+
+            <div className="mt-6 rounded-2xl border border-white/80 bg-white/70 p-5 shadow-inner shadow-emerald-100/40 backdrop-blur-sm md:p-6">
+              {leadTab === "buy" ? (
+                <form onSubmit={handleBuyLeadSubmit} className="grid gap-4 md:grid-cols-2">
+                  <div className="md:col-span-2">
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Full name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      required
+                      type="text"
+                      value={buyLead.name}
+                      onChange={(e) =>
+                        setBuyLead((p) => ({ ...p, name: e.target.value }))
+                      }
+                      placeholder="Your name"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none ring-emerald-500/20 transition focus:border-emerald-500 focus:ring-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Email <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      required
+                      type="email"
+                      value={buyLead.email}
+                      onChange={(e) =>
+                        setBuyLead((p) => ({ ...p, email: e.target.value }))
+                      }
+                      placeholder="you@email.com"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Phone <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      required
+                      type="tel"
+                      value={buyLead.phone}
+                      onChange={(e) =>
+                        setBuyLead((p) => ({ ...p, phone: e.target.value }))
+                      }
+                      placeholder="+91 ..."
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Car you are looking for <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      required
+                      type="text"
+                      value={buyLead.carName}
+                      onChange={(e) =>
+                        setBuyLead((p) => ({ ...p, carName: e.target.value }))
+                      }
+                      placeholder="e.g. Honda City VX 2020"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                    />
+                  </div>
+                  <div className="md:col-span-2 flex flex-wrap items-center gap-3 pt-1">
+                    <button
+                      type="submit"
+                      disabled={leadSubmitting}
+                      className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-emerald-200/60 transition hover:from-emerald-700 hover:to-teal-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <span aria-hidden>🙏</span>
+                      {leadSubmitting ? "Sending…" : "Submit buy request"}
+                    </button>
+                    <p className="text-xs text-slate-500">
+                      <span aria-hidden>✨</span> We respect your privacy — no spam.
+                    </p>
+                  </div>
+                </form>
+              ) : (
+                <form onSubmit={handleSellLeadSubmit} className="grid gap-4 md:grid-cols-2">
+                  <div className="md:col-span-2">
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Full name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      required
+                      type="text"
+                      value={sellLead.name}
+                      onChange={(e) =>
+                        setSellLead((p) => ({ ...p, name: e.target.value }))
+                      }
+                      placeholder="Your name"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Email <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      required
+                      type="email"
+                      value={sellLead.email}
+                      onChange={(e) =>
+                        setSellLead((p) => ({ ...p, email: e.target.value }))
+                      }
+                      placeholder="you@email.com"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Phone <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      required
+                      type="tel"
+                      value={sellLead.phone}
+                      onChange={(e) =>
+                        setSellLead((p) => ({ ...p, phone: e.target.value }))
+                      }
+                      placeholder="+91 ..."
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Car make & model <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      required
+                      type="text"
+                      value={sellLead.carMakeModel}
+                      onChange={(e) =>
+                        setSellLead((p) => ({ ...p, carMakeModel: e.target.value }))
+                      }
+                      placeholder="e.g. Maruti Swift VXI"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Year (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={sellLead.year}
+                      onChange={(e) =>
+                        setSellLead((p) => ({ ...p, year: e.target.value }))
+                      }
+                      placeholder="e.g. 2019"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Expected price (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={sellLead.expectedPrice}
+                      onChange={(e) =>
+                        setSellLead((p) => ({ ...p, expectedPrice: e.target.value }))
+                      }
+                      placeholder="e.g. 5,50,000"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Notes (optional)
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={sellLead.notes}
+                      onChange={(e) =>
+                        setSellLead((p) => ({ ...p, notes: e.target.value }))
+                      }
+                      placeholder="Condition, mileage, city…"
+                      className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+                    />
+                  </div>
+                  <div className="md:col-span-2 flex flex-wrap items-center gap-3 pt-1">
+                    <button
+                      type="submit"
+                      disabled={leadSubmitting}
+                      className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-teal-600 to-emerald-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-teal-200/50 transition hover:from-teal-700 hover:to-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <span aria-hidden>🙏</span>
+                      {leadSubmitting ? "Sending…" : "Submit sell details"}
+                    </button>
+                    <p className="text-xs text-slate-500">
+                      <span aria-hidden>📋</span> Our team reviews every listing personally.
+                    </p>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
       </motion.section>
 
       <AnimatePresence>

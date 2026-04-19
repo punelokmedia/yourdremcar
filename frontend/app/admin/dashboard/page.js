@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { getApiUrl, MISSING_NEXT_PUBLIC_API_URL } from "../../../lib/getApiUrl";
+import { apiUrl, getApiUrl, MISSING_NEXT_PUBLIC_API_URL } from "../../../lib/getApiUrl";
 import {
   isDirectCloudinaryUploadEnabled,
   uploadCarImageClientSide,
@@ -19,6 +19,8 @@ const menuItems = [
   { label: "Reviews", icon: "★", badge: null },
   { label: "Happy Customers", icon: "☺", badge: null },
   { label: "Contact Queries", icon: "☏", badge: null },
+  { label: "Buy requests", icon: "🛒", badge: null },
+  { label: "Sell requests", icon: "🙏", badge: null },
 ];
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const STATUS_OPTIONS = ["Pending", "Contacted", "Resolved"];
@@ -70,6 +72,7 @@ export default function AdminDashboardPage() {
   const [cars, setCars] = useState([]);
   const [totalCars, setTotalCars] = useState(0);
   const [buyRequests, setBuyRequests] = useState([]);
+  const [sellRequests, setSellRequests] = useState([]);
   const [contactQueries, setContactQueries] = useState([]);
   const [reviews, setReviews] = useState([]);
   const [deletingReviewId, setDeletingReviewId] = useState("");
@@ -86,7 +89,10 @@ export default function AdminDashboardPage() {
   const [happyClientError, setHappyClientError] = useState("");
   const [loadingData, setLoadingData] = useState(false);
   const [dataError, setDataError] = useState("");
+  const [sellRequestsError, setSellRequestsError] = useState("");
   const [updatingStatusId, setUpdatingStatusId] = useState("");
+  const [deletingBuyRequestId, setDeletingBuyRequestId] = useState("");
+  const [deletingSellRequestId, setDeletingSellRequestId] = useState("");
   const [storageHealth, setStorageHealth] = useState(null);
   const currentDate = new Intl.DateTimeFormat("en-US", {
     day: "2-digit",
@@ -131,6 +137,7 @@ export default function AdminDashboardPage() {
     const fetchDashboardData = async () => {
       setLoadingData(true);
       setDataError("");
+      setSellRequestsError("");
 
       try {
         if (!API_URL) {
@@ -190,6 +197,29 @@ export default function AdminDashboardPage() {
         setContactQueries(contactQueriesData.data || []);
         setReviews(reviewsData.data || []);
         setHappyClients(happyClientsData.data || []);
+
+        let sellList = [];
+        try {
+          const sellRes = await fetch(apiUrl("sell-requests"), fetchOpts);
+          const sellRaw = await sellRes.text();
+          let sellJson = {};
+          try {
+            sellJson = sellRaw ? JSON.parse(sellRaw) : {};
+          } catch {
+            throw new Error("Sell requests: server did not return JSON (check API URL).");
+          }
+          if (sellRes.ok && Array.isArray(sellJson.data)) {
+            sellList = sellJson.data;
+          } else {
+            setSellRequestsError(
+              sellJson.message ||
+                `Sell requests unavailable (${sellRes.status}). Use a backend build that includes GET /api/sell-requests.`
+            );
+          }
+        } catch (sellErr) {
+          setSellRequestsError(sellErr.message || "Could not load sell requests");
+        }
+        setSellRequests(sellList);
       } catch (error) {
         setDataError(error.message || "Failed to load dashboard data");
       } finally {
@@ -198,6 +228,39 @@ export default function AdminDashboardPage() {
     };
 
     fetchDashboardData();
+  }, [isReady]);
+
+  useEffect(() => {
+    if (!isReady || !API_URL) return;
+
+    const refreshSellRequests = async () => {
+      try {
+        const fetchOpts = {
+          cache: "no-store",
+          headers: { Accept: "application/json" },
+        };
+        const sellRes = await fetch(apiUrl("sell-requests"), fetchOpts);
+        const sellRaw = await sellRes.text();
+        let sellJson = {};
+        try {
+          sellJson = sellRaw ? JSON.parse(sellRaw) : {};
+        } catch {
+          return;
+        }
+        if (sellRes.ok && Array.isArray(sellJson.data)) {
+          setSellRequests(sellJson.data);
+          setSellRequestsError("");
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+
+    const onSellChanged = () => {
+      void refreshSellRequests();
+    };
+    window.addEventListener("sell-requests-changed", onSellChanged);
+    return () => window.removeEventListener("sell-requests-changed", onSellChanged);
   }, [isReady]);
 
   const dashboardCards = [
@@ -216,6 +279,14 @@ export default function AdminDashboardPage() {
       color: "from-indigo-500 to-blue-600",
       icon: "🛒",
       glow: "shadow-indigo-200/70",
+    },
+    {
+      label: "Sell leads",
+      value: String(sellRequests.length),
+      detail: "Sell your car submissions",
+      color: "from-emerald-500 to-teal-600",
+      icon: "🙏",
+      glow: "shadow-emerald-200/70",
     },
     {
       label: "Total Inquiry",
@@ -243,9 +314,19 @@ export default function AdminDashboardPage() {
     if (item.label === "Contact Queries") {
       return { ...item, badge: String(contactQueries.length) };
     }
+    if (item.label === "Buy requests") {
+      return { ...item, badge: String(buyRequests.length) };
+    }
+    if (item.label === "Sell requests") {
+      return { ...item, badge: String(sellRequests.length) };
+    }
     return item;
   });
   const recentBuyRequests = buyRequests.filter((item) => {
+    const createdAt = new Date(item.createdAt || item.updatedAt || 0).getTime();
+    return Date.now() - createdAt <= ONE_DAY_MS;
+  });
+  const recentSellRequests = sellRequests.filter((item) => {
     const createdAt = new Date(item.createdAt || item.updatedAt || 0).getTime();
     return Date.now() - createdAt <= ONE_DAY_MS;
   });
@@ -257,6 +338,64 @@ export default function AdminDashboardPage() {
   const handleLogout = () => {
     localStorage.removeItem(ADMIN_AUTH_KEY);
     router.push("/admin/login");
+  };
+
+  const handleDeleteBuyRequest = async (requestId) => {
+    const confirmed = window.confirm("Delete this buy request permanently?");
+    if (!confirmed) return;
+
+    setDeletingBuyRequestId(requestId);
+    setDataError("");
+
+    try {
+      if (!API_URL) {
+        setDataError(MISSING_NEXT_PUBLIC_API_URL);
+        return;
+      }
+      const response = await fetch(apiUrl("buy-requests", requestId), {
+        method: "DELETE",
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to delete buy request");
+      }
+      setBuyRequests((prev) => prev.filter((r) => r._id !== requestId));
+    } catch (error) {
+      setDataError(error.message || "Failed to delete buy request");
+    } finally {
+      setDeletingBuyRequestId("");
+    }
+  };
+
+  const handleDeleteSellRequest = async (requestId) => {
+    const confirmed = window.confirm("Delete this sell request permanently?");
+    if (!confirmed) return;
+
+    setDeletingSellRequestId(requestId);
+    setDataError("");
+
+    try {
+      if (!API_URL) {
+        setDataError(MISSING_NEXT_PUBLIC_API_URL);
+        return;
+      }
+      const response = await fetch(apiUrl("sell-requests", requestId), {
+        method: "DELETE",
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to delete sell request");
+      }
+      setSellRequests((prev) => prev.filter((r) => r._id !== requestId));
+    } catch (error) {
+      setDataError(error.message || "Failed to delete sell request");
+    } finally {
+      setDeletingSellRequestId("");
+    }
   };
 
   const handleNewCarInputChange = (event) => {
@@ -1116,6 +1255,180 @@ export default function AdminDashboardPage() {
                 </table>
               </div>
             </article>
+          ) : activeMenu === "Buy requests" ? (
+            <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">Buy requests</h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Requests to buy a car from the site (home page & forms).
+                  </p>
+                </div>
+                <span className="rounded-full border border-slate-300 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                  {buyRequests.length} Total
+                </span>
+              </div>
+
+              {dataError ? (
+                <p className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                  {dataError}
+                </p>
+              ) : null}
+
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[880px] text-left text-sm">
+                  <thead className="border-b border-slate-200 text-slate-600">
+                    <tr>
+                      <th className="py-2 pr-3 font-semibold">Name</th>
+                      <th className="py-2 pr-3 font-semibold">Email</th>
+                      <th className="py-2 pr-3 font-semibold">Phone</th>
+                      <th className="py-2 pr-3 font-semibold">Car</th>
+                      <th className="py-2 pr-3 font-semibold">Submitted</th>
+                      <th className="py-2 pr-3 font-semibold">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loadingData ? (
+                      <tr>
+                        <td
+                          colSpan={6}
+                          className="py-4 text-center text-sm font-medium text-slate-500"
+                        >
+                          Loading buy requests...
+                        </td>
+                      </tr>
+                    ) : buyRequests.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={6}
+                          className="py-4 text-center text-sm font-medium text-slate-500"
+                        >
+                          No buy requests yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      buyRequests.map((req) => (
+                        <tr key={req._id} className="border-b border-slate-100 text-slate-700">
+                          <td className="py-3 pr-3 font-medium">{req.name}</td>
+                          <td className="py-3 pr-3">{req.email}</td>
+                          <td className="py-3 pr-3">{req.phone}</td>
+                          <td className="max-w-[220px] py-3 pr-3">{req.carName}</td>
+                          <td className="whitespace-nowrap py-3 pr-3 text-xs text-slate-600">
+                            {req.createdAt
+                              ? new Date(req.createdAt).toLocaleString()
+                              : "—"}
+                          </td>
+                          <td className="py-3 pr-3">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteBuyRequest(req._id)}
+                              disabled={deletingBuyRequestId === req._id}
+                              className="rounded-lg border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-60"
+                            >
+                              {deletingBuyRequestId === req._id ? "Deleting…" : "Delete"}
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </article>
+          ) : activeMenu === "Sell requests" ? (
+            <article className="rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-white to-emerald-50/40 p-6 shadow-sm">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">Sell your car — all leads</h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Submissions from the home page “Sell your car” form.
+                  </p>
+                </div>
+                <span className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold text-emerald-800">
+                  {sellRequests.length} Total
+                </span>
+              </div>
+
+              {dataError ? (
+                <p className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                  {dataError}
+                </p>
+              ) : null}
+
+              {sellRequestsError ? (
+                <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">
+                  {sellRequestsError}
+                </p>
+              ) : null}
+
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1020px] text-left text-sm">
+                  <thead className="border-b border-slate-200 text-slate-600">
+                    <tr>
+                      <th className="py-2 pr-3 font-semibold">Name</th>
+                      <th className="py-2 pr-3 font-semibold">Email</th>
+                      <th className="py-2 pr-3 font-semibold">Phone</th>
+                      <th className="py-2 pr-3 font-semibold">Car</th>
+                      <th className="py-2 pr-3 font-semibold">Year</th>
+                      <th className="py-2 pr-3 font-semibold">Expected price</th>
+                      <th className="py-2 pr-3 font-semibold">Notes</th>
+                      <th className="py-2 pr-3 font-semibold">Submitted</th>
+                      <th className="py-2 pr-3 font-semibold">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loadingData ? (
+                      <tr>
+                        <td
+                          colSpan={9}
+                          className="py-4 text-center text-sm font-medium text-slate-500"
+                        >
+                          Loading sell requests...
+                        </td>
+                      </tr>
+                    ) : sellRequests.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={9}
+                          className="py-4 text-center text-sm font-medium text-slate-500"
+                        >
+                          No sell requests yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      sellRequests.map((req) => (
+                        <tr key={req._id} className="border-b border-slate-100 text-slate-700">
+                          <td className="py-3 pr-3 font-medium">{req.name}</td>
+                          <td className="py-3 pr-3">{req.email}</td>
+                          <td className="py-3 pr-3">{req.phone}</td>
+                          <td className="max-w-[200px] py-3 pr-3">{req.carMakeModel}</td>
+                          <td className="py-3 pr-3">{req.year || "—"}</td>
+                          <td className="py-3 pr-3">{req.expectedPrice || "—"}</td>
+                          <td className="max-w-[240px] py-3 pr-3">
+                            <p className="line-clamp-2">{req.notes || "—"}</p>
+                          </td>
+                          <td className="whitespace-nowrap py-3 pr-3 text-xs text-slate-600">
+                            {req.createdAt
+                              ? new Date(req.createdAt).toLocaleString()
+                              : "—"}
+                          </td>
+                          <td className="py-3 pr-3">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSellRequest(req._id)}
+                              disabled={deletingSellRequestId === req._id}
+                              className="rounded-lg border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-60"
+                            >
+                              {deletingSellRequestId === req._id ? "Deleting…" : "Delete"}
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </article>
           ) : activeMenu === "New Cars" ? (
             <div className="w-full max-w-6xl space-y-6">
               <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -1576,7 +1889,7 @@ export default function AdminDashboardPage() {
             </div>
           ) : (
             <>
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 {dashboardCards.map((card) => (
                   <motion.article
                     key={card.label}
@@ -1606,63 +1919,155 @@ export default function AdminDashboardPage() {
               ) : null}
 
               <div className="grid gap-6 xl:grid-cols-[1.45fr_1fr]">
-                <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <div className="mb-4 flex items-center justify-between">
-                    <h2 className="text-xl font-bold text-slate-900">Recent Buy Requests</h2>
-                    <span className="rounded-full border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700">
-                      Last 24 Hours
-                    </span>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[560px] text-left text-sm">
-                      <thead className="border-b border-slate-200 text-slate-600">
-                        <tr>
-                          <th className="py-2 pr-3 font-semibold">Name</th>
-                          <th className="py-2 pr-3 font-semibold">Car</th>
-                          <th className="py-2 pr-3 font-semibold">Phone</th>
-                          <th className="py-2 pr-3 font-semibold">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {loadingData ? (
+                <div className="space-y-6">
+                  <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <div className="mb-4 flex items-center justify-between">
+                      <h2 className="text-xl font-bold text-slate-900">Recent Buy Requests</h2>
+                      <span className="rounded-full border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                        Last 24 Hours
+                      </span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[640px] text-left text-sm">
+                        <thead className="border-b border-slate-200 text-slate-600">
                           <tr>
-                            <td
-                              colSpan={4}
-                              className="py-4 text-center text-sm font-medium text-slate-500"
-                            >
-                              Loading real data...
-                            </td>
+                            <th className="py-2 pr-3 font-semibold">Name</th>
+                            <th className="py-2 pr-3 font-semibold">Car</th>
+                            <th className="py-2 pr-3 font-semibold">Phone</th>
+                            <th className="py-2 pr-3 font-semibold">Status</th>
+                            <th className="py-2 pr-3 font-semibold">Action</th>
                           </tr>
-                        ) : recentBuyRequests.length === 0 ? (
-                          <tr>
-                            <td
-                              colSpan={4}
-                              className="py-4 text-center text-sm font-medium text-slate-500"
-                            >
-                              No buy requests in the last 24 hours.
-                            </td>
-                          </tr>
-                        ) : (
-                          recentBuyRequests.slice(0, 8).map((request) => (
-                            <tr
-                              key={request._id}
-                              className="border-b border-slate-100 text-slate-700"
-                            >
-                              <td className="py-3 pr-3">{request.name}</td>
-                              <td className="py-3 pr-3">{request.carName}</td>
-                              <td className="py-3 pr-3">{request.phone}</td>
-                              <td className="py-3 pr-3">
-                                <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
-                                  Pending
-                                </span>
+                        </thead>
+                        <tbody>
+                          {loadingData ? (
+                            <tr>
+                              <td
+                                colSpan={5}
+                                className="py-4 text-center text-sm font-medium text-slate-500"
+                              >
+                                Loading real data...
                               </td>
                             </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </article>
+                          ) : recentBuyRequests.length === 0 ? (
+                            <tr>
+                              <td
+                                colSpan={5}
+                                className="py-4 text-center text-sm font-medium text-slate-500"
+                              >
+                                No buy requests in the last 24 hours.
+                              </td>
+                            </tr>
+                          ) : (
+                            recentBuyRequests.slice(0, 8).map((request) => (
+                              <tr
+                                key={request._id}
+                                className="border-b border-slate-100 text-slate-700"
+                              >
+                                <td className="py-3 pr-3">{request.name}</td>
+                                <td className="py-3 pr-3">{request.carName}</td>
+                                <td className="py-3 pr-3">{request.phone}</td>
+                                <td className="py-3 pr-3">
+                                  <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                                    Pending
+                                  </span>
+                                </td>
+                                <td className="py-3 pr-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteBuyRequest(request._id)}
+                                    disabled={deletingBuyRequestId === request._id}
+                                    className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-60"
+                                  >
+                                    {deletingBuyRequestId === request._id ? "…" : "Delete"}
+                                  </button>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </article>
+
+                  <article className="rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/50 to-white p-6 shadow-sm">
+                    <div className="mb-4 flex items-center justify-between">
+                      <h2 className="text-xl font-bold text-slate-900">
+                        Recent Sell Your Car
+                      </h2>
+                      <span className="rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800">
+                        Last 24 Hours
+                      </span>
+                    </div>
+                    {sellRequestsError ? (
+                      <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">
+                        {sellRequestsError}
+                      </p>
+                    ) : null}
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[720px] text-left text-sm">
+                        <thead className="border-b border-slate-200 text-slate-600">
+                          <tr>
+                            <th className="py-2 pr-3 font-semibold">Name</th>
+                            <th className="py-2 pr-3 font-semibold">Car</th>
+                            <th className="py-2 pr-3 font-semibold">Phone</th>
+                            <th className="py-2 pr-3 font-semibold">Price</th>
+                            <th className="py-2 pr-3 font-semibold">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {loadingData ? (
+                            <tr>
+                              <td
+                                colSpan={5}
+                                className="py-4 text-center text-sm font-medium text-slate-500"
+                              >
+                                Loading…
+                              </td>
+                            </tr>
+                          ) : recentSellRequests.length === 0 ? (
+                            <tr>
+                              <td
+                                colSpan={5}
+                                className="py-4 text-center text-sm font-medium text-slate-500"
+                              >
+                                No sell requests in the last 24 hours.
+                              </td>
+                            </tr>
+                          ) : (
+                            recentSellRequests.slice(0, 8).map((req) => (
+                              <tr
+                                key={req._id}
+                                className="border-b border-slate-100 text-slate-700"
+                              >
+                                <td className="py-3 pr-3">{req.name}</td>
+                                <td className="py-3 pr-3">
+                                  {req.carMakeModel}
+                                  {req.year ? (
+                                    <span className="text-slate-500"> · {req.year}</span>
+                                  ) : null}
+                                </td>
+                                <td className="py-3 pr-3">{req.phone}</td>
+                                <td className="py-3 pr-3 text-slate-600">
+                                  {req.expectedPrice || "—"}
+                                </td>
+                                <td className="py-3 pr-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteSellRequest(req._id)}
+                                    disabled={deletingSellRequestId === req._id}
+                                    className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-60"
+                                  >
+                                    {deletingSellRequestId === req._id ? "…" : "Delete"}
+                                  </button>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </article>
+                </div>
 
                 <div className="space-y-6">
                   <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">

@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import BuyRequest from "../models/BuyRequest.js";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -51,6 +52,31 @@ export const getBuyRequests = async (_req, res, next) => {
     return res.status(200).json({
       success: true,
       data: requests,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const deleteBuyRequest = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid request id",
+      });
+    }
+    const deleted = await BuyRequest.findByIdAndDelete(id);
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        message: "Buy request not found",
+      });
+    }
+    return res.status(200).json({
+      success: true,
+      message: "Buy request deleted",
     });
   } catch (error) {
     return next(error);

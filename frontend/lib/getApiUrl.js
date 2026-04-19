@@ -48,5 +48,18 @@ export function isApiUrlConfigured() {
   return Boolean(getApiUrl());
 }
 
+/**
+ * Build a full request URL: base (/api) + path segment (e.g. "sell-requests").
+ * Avoids duplicate or missing slashes.
+ */
+export function apiUrl(...pathSegments) {
+  const base = getApiUrl().replace(/\/+$/, "");
+  const path = pathSegments
+    .map((s) => String(s).replace(/^\/+|\/+$/g, ""))
+    .filter(Boolean)
+    .join("/");
+  return path ? `${base}/${path}` : base;
+}
+
 export const MISSING_NEXT_PUBLIC_API_URL =
   "Set NEXT_PUBLIC_API_URL on the frontend (full backend URL ending in /api, or /api if BACKEND_ORIGIN rewrites are configured), redeploy, then refresh.";
