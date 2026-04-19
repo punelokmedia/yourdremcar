@@ -32,37 +32,34 @@ export default function HappyClientsPage() {
     setLoading(true);
     setReviewsLoading(true);
 
+    const fetchOpts = {
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+    };
+
     try {
-      const hcRes = await fetch(`${apiUrl}/happy-clients`, {
-        cache: "no-store",
-        headers: { Accept: "application/json" },
-      });
+      const [hcRes, revRes] = await Promise.all([
+        fetch(`${apiUrl}/happy-clients`, fetchOpts),
+        fetch(`${apiUrl}/reviews`, fetchOpts),
+      ]);
       const hcData = await hcRes.json();
+      const revData = await revRes.json();
+
       if (!hcRes.ok) {
         throw new Error(hcData.message || "Could not load happy customers");
       }
       setClients(hcData.data || []);
-    } catch (e) {
-      setError(e.message || "Could not load happy customers");
-      setClients([]);
-    } finally {
-      setLoading(false);
-    }
-
-    try {
-      const revRes = await fetch(`${apiUrl}/reviews`, {
-        cache: "no-store",
-        headers: { Accept: "application/json" },
-      });
-      const revData = await revRes.json();
       if (revRes.ok) {
         setReviews(revData.data || []);
       } else {
         setReviews([]);
       }
-    } catch {
+    } catch (e) {
+      setError(e.message || "Could not load happy customers");
+      setClients([]);
       setReviews([]);
     } finally {
+      setLoading(false);
       setReviewsLoading(false);
     }
   }, [apiUrl]);

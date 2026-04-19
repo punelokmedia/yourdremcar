@@ -153,7 +153,12 @@ export default function HomePage() {
   useEffect(() => {
     let cancelled = false;
 
-    const fetchCars = async ({ showLoading = true } = {}) => {
+    const fetchOpts = {
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+    };
+
+    const fetchCarsOnly = async ({ showLoading = true } = {}) => {
       if (showLoading) setCarsLoading(true);
       setCarsError("");
       try {
@@ -162,10 +167,7 @@ export default function HomePage() {
           if (!cancelled) setCarsError(MISSING_NEXT_PUBLIC_API_URL);
           return;
         }
-        const response = await fetch(`${API_URL}/cars`, {
-          cache: "no-store",
-          headers: { Accept: "application/json" },
-        });
+        const response = await fetch(`${API_URL}/cars`, fetchOpts);
         const data = await response.json();
         if (!response.ok) {
           throw new Error(data.message || "Failed to load cars");
@@ -178,16 +180,45 @@ export default function HomePage() {
       }
     };
 
-    fetchCars({ showLoading: true });
+    const loadCarsAndReviews = async () => {
+      setCarsLoading(true);
+      setCarsError("");
+      try {
+        const API_URL = getApiUrl();
+        if (!API_URL) {
+          if (!cancelled) setCarsError(MISSING_NEXT_PUBLIC_API_URL);
+          return;
+        }
+        const [carsRes, reviewsRes] = await Promise.all([
+          fetch(`${API_URL}/cars`, fetchOpts),
+          fetch(`${API_URL}/reviews`, fetchOpts),
+        ]);
+        const carsData = await carsRes.json();
+        const reviewsData = await reviewsRes.json();
+        if (cancelled) return;
+        if (carsRes.ok) {
+          setCars(carsData.data || []);
+        } else {
+          setCarsError(carsData.message || "Failed to load cars");
+        }
+        if (reviewsRes.ok) setReviews(reviewsData.data || []);
+      } catch (error) {
+        if (!cancelled) setCarsError(error.message || "Failed to load cars");
+      } finally {
+        if (!cancelled) setCarsLoading(false);
+      }
+    };
+
+    loadCarsAndReviews();
 
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
-        fetchCars({ showLoading: false });
+        fetchCarsOnly({ showLoading: false });
       }
     };
     document.addEventListener("visibilitychange", onVisibility);
 
-    const onInventoryChanged = () => fetchCars({ showLoading: false });
+    const onInventoryChanged = () => fetchCarsOnly({ showLoading: false });
     window.addEventListener("cars-inventory-changed", onInventoryChanged);
 
     return () => {
@@ -213,10 +244,7 @@ export default function HomePage() {
         /* ignore */
       }
     };
-    loadReviews();
-    const onReviewsChanged = () => {
-      loadReviews();
-    };
+    const onReviewsChanged = () => loadReviews();
     if (typeof window !== "undefined") {
       window.addEventListener("reviews-changed", onReviewsChanged);
     }

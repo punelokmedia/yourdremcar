@@ -32,16 +32,14 @@ export default function AdminLoginPage() {
     const isValid =
       normalizedEmail === ADMIN_EMAIL && normalizedPassword === ADMIN_PASSWORD;
 
-    setTimeout(() => {
-      if (!isValid) {
-        setError("Invalid email or password.");
-        setLoading(false);
-        return;
-      }
+    if (!isValid) {
+      setError("Invalid email or password.");
+      setLoading(false);
+      return;
+    }
 
-      localStorage.setItem(ADMIN_AUTH_KEY, "true");
-      router.push("/admin/dashboard");
-    }, 500);
+    localStorage.setItem(ADMIN_AUTH_KEY, "true");
+    router.push("/admin/dashboard");
   };
 
   return (
