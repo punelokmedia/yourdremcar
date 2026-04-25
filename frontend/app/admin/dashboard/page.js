@@ -87,6 +87,7 @@ export default function AdminDashboardPage() {
   const [happyClientSubmitting, setHappyClientSubmitting] = useState(false);
   const [happyClientMessage, setHappyClientMessage] = useState("");
   const [happyClientError, setHappyClientError] = useState("");
+  const [editingHappyClientId, setEditingHappyClientId] = useState("");
   const [loadingData, setLoadingData] = useState(false);
   const [dataError, setDataError] = useState("");
   const [sellRequestsError, setSellRequestsError] = useState("");
@@ -643,29 +644,56 @@ export default function AdminDashboardPage() {
         setHappyClientError(MISSING_NEXT_PUBLIC_API_URL);
         return;
       }
-      if (!happyClientForm.image) {
-        setHappyClientError("Please choose a photo from your device.");
-        return;
-      }
-      const formData = new FormData();
-      formData.append("name", happyClientForm.name.trim());
-      formData.append("text", happyClientForm.text.trim());
-      formData.append("image", happyClientForm.image);
+      if (editingHappyClientId) {
+        const response = await fetch(`${API_URL}/happy-clients/${editingHappyClientId}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            name: happyClientForm.name.trim(),
+            text: happyClientForm.text.trim(),
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.message || "Failed to update happy customer");
+        }
+        setHappyClients((prev) =>
+          prev.map((item) => (item._id === editingHappyClientId ? data.data : item))
+        );
+        setHappyClientForm({ name: "", text: "", image: null });
+        setHappyClientFileKey((k) => k + 1);
+        setEditingHappyClientId("");
+        setHappyClientMessage("Happy customer updated.");
+      } else {
+        if (!happyClientForm.image) {
+          setHappyClientError("Please choose a photo from your device.");
+          return;
+        }
+        const formData = new FormData();
+        formData.append("name", happyClientForm.name.trim());
+        formData.append("text", happyClientForm.text.trim());
+        formData.append("image", happyClientForm.image);
 
-      const response = await fetch(`${API_URL}/happy-clients`, {
-        method: "POST",
-        body: formData,
-        cache: "no-store",
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to add happy customer");
-      }
+        const response = await fetch(`${API_URL}/happy-clients`, {
+          method: "POST",
+          body: formData,
+          cache: "no-store",
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.message || "Failed to add happy customer");
+        }
 
-      setHappyClients((prev) => [data.data, ...prev]);
-      setHappyClientForm({ name: "", text: "", image: null });
-      setHappyClientFileKey((k) => k + 1);
-      setHappyClientMessage("Happy customer added. Photo is stored in public/images/happy-clients on the server.");
+        setHappyClients((prev) => [data.data, ...prev]);
+        setHappyClientForm({ name: "", text: "", image: null });
+        setHappyClientFileKey((k) => k + 1);
+        setHappyClientMessage(
+          "Happy customer added. Photo is stored in public/images/happy-clients on the server."
+        );
+      }
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("happy-clients-changed"));
       }
@@ -674,6 +702,24 @@ export default function AdminDashboardPage() {
     } finally {
       setHappyClientSubmitting(false);
     }
+  };
+
+  const handleEditHappyClient = (client) => {
+    setHappyClientError("");
+    setHappyClientMessage("");
+    setEditingHappyClientId(client._id);
+    setHappyClientForm({
+      name: client.name || "",
+      text: client.text || "",
+      image: null,
+    });
+    setHappyClientFileKey((k) => k + 1);
+  };
+
+  const handleCancelHappyClientEdit = () => {
+    setEditingHappyClientId("");
+    setHappyClientForm({ name: "", text: "", image: null });
+    setHappyClientFileKey((k) => k + 1);
   };
 
   const handleDeleteHappyClient = async (clientId) => {
@@ -698,6 +744,9 @@ export default function AdminDashboardPage() {
         throw new Error(data.message || "Failed to delete");
       }
       setHappyClients((prev) => prev.filter((h) => h._id !== clientId));
+      if (editingHappyClientId === clientId) {
+        handleCancelHappyClientEdit();
+      }
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("happy-clients-changed"));
       }
@@ -1011,11 +1060,21 @@ export default function AdminDashboardPage() {
             <div className="space-y-6">
               <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="mb-4">
-                  <h2 className="text-xl font-bold text-slate-900">Add happy customer</h2>
+                  <h2 className="text-xl font-bold text-slate-900">
+                    {editingHappyClientId ? "Edit happy customer" : "Add happy customer"}
+                  </h2>
                   <p className="mt-1 text-sm text-slate-600">
-                    Upload a photo from your device. Files are saved in{" "}
-                    <code className="rounded bg-slate-100 px-1 text-xs">frontend/public/images/happy-clients</code>{" "}
-                    (not Cloudinary).
+                    {editingHappyClientId
+                      ? "Update name and quote. To change photo, delete and add again."
+                      : "Upload a photo from your device. Files are saved in "}
+                    {!editingHappyClientId ? (
+                      <>
+                        <code className="rounded bg-slate-100 px-1 text-xs">
+                          frontend/public/images/happy-clients
+                        </code>{" "}
+                        (not Cloudinary).
+                      </>
+                    ) : null}
                   </p>
                 </div>
 
@@ -1079,16 +1138,35 @@ export default function AdminDashboardPage() {
                           image: e.target.files?.[0] || null,
                         }))
                       }
-                      className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white"
+                      disabled={Boolean(editingHappyClientId)}
+                      className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white disabled:opacity-60"
                     />
                   </div>
-                  <button
-                    type="submit"
-                    disabled={happyClientSubmitting}
-                    className="w-fit rounded-full bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-black disabled:opacity-60"
-                  >
-                    {happyClientSubmitting ? "Uploading…" : "Save happy customer"}
-                  </button>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      type="submit"
+                      disabled={happyClientSubmitting}
+                      className="w-fit rounded-full bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-black disabled:opacity-60"
+                    >
+                      {happyClientSubmitting
+                        ? editingHappyClientId
+                          ? "Saving…"
+                          : "Uploading…"
+                        : editingHappyClientId
+                          ? "Save changes"
+                          : "Save happy customer"}
+                    </button>
+                    {editingHappyClientId ? (
+                      <button
+                        type="button"
+                        onClick={handleCancelHappyClientEdit}
+                        disabled={happyClientSubmitting}
+                        className="rounded-full border border-slate-300 bg-white px-5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
+                      >
+                        Cancel edit
+                      </button>
+                    ) : null}
+                  </div>
                 </form>
               </article>
 
@@ -1151,14 +1229,24 @@ export default function AdminDashboardPage() {
                               <p className="line-clamp-3">{hc.text}</p>
                             </td>
                             <td className="py-3 pr-3">
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteHappyClient(hc._id)}
-                                disabled={deletingHappyClientId === hc._id}
-                                className="rounded-lg border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-60"
-                              >
-                                {deletingHappyClientId === hc._id ? "Deleting…" : "Delete"}
-                              </button>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditHappyClient(hc)}
+                                  disabled={happyClientSubmitting}
+                                  className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 disabled:opacity-60"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteHappyClient(hc._id)}
+                                  disabled={deletingHappyClientId === hc._id}
+                                  className="rounded-lg border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-60"
+                                >
+                                  {deletingHappyClientId === hc._id ? "Deleting…" : "Delete"}
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))

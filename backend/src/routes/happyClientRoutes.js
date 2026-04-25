@@ -3,6 +3,7 @@ import multer from "multer";
 import {
   getHappyClients,
   createHappyClient,
+  updateHappyClient,
   deleteHappyClient,
 } from "../controllers/happyClientController.js";
 
@@ -24,6 +25,7 @@ const upload = multer({
 
 router.get("/", getHappyClients);
 router.post("/", upload.single("image"), createHappyClient);
+router.patch("/:id", updateHappyClient);
 router.delete("/:id", deleteHappyClient);
 
 export default router;

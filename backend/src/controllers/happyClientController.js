@@ -132,6 +132,48 @@ export const createHappyClient = async (req, res, next) => {
   }
 };
 
+export const updateHappyClient = async (req, res, next) => {
+  try {
+    const name = typeof req.body.name === "string" ? req.body.name.trim() : "";
+    const text = typeof req.body.text === "string" ? req.body.text.trim() : "";
+
+    if (!name || name.length < 2) {
+      return res.status(400).json({
+        success: false,
+        message: "Please enter the client name (at least 2 characters).",
+      });
+    }
+
+    if (!text || text.length < 5) {
+      return res.status(400).json({
+        success: false,
+        message: "Please enter a short message (at least 5 characters).",
+      });
+    }
+
+    const updated = await HappyClient.findByIdAndUpdate(
+      req.params.id,
+      { name, text },
+      { new: true, runValidators: true }
+    );
+
+    if (!updated) {
+      return res.status(404).json({
+        success: false,
+        message: "Entry not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Happy customer updated.",
+      data: updated,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 export const deleteHappyClient = async (req, res, next) => {
   try {
     const doc = await HappyClient.findById(req.params.id);
