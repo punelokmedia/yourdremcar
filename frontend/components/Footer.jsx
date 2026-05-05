@@ -9,6 +9,7 @@ import {
   TEL_HREF,
   WHATSAPP_URL,
 } from "../lib/contactInfo";
+import { CAR_SELLS_COOKIE_OPEN_EVENT } from "./CookieConsentBanner";
 
 export default function Footer() {
   return (
@@ -126,6 +127,19 @@ export default function Footer() {
                   <a href="/contact-us" className="transition hover:text-white">
                     Contact
                   </a>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    className="text-left transition hover:text-white"
+                    onClick={() => {
+                      if (typeof window !== "undefined") {
+                        window.dispatchEvent(new CustomEvent(CAR_SELLS_COOKIE_OPEN_EVENT));
+                      }
+                    }}
+                  >
+                    Cookie preferences
+                  </button>
                 </li>
               </ul>
             </div>

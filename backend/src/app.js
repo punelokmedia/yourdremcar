@@ -9,10 +9,12 @@ import contactQueryRoutes from "./routes/contactQueryRoutes.js";
 import reviewRoutes from "./routes/reviewRoutes.js";
 import happyClientRoutes from "./routes/happyClientRoutes.js";
 import sellCarRoutes from "./routes/sellCarRoutes.js";
+import cookieConsentRoutes from "./routes/cookieConsentRoutes.js";
 import errorHandler from "./middlewares/errorHandler.js";
 import cloudinary, { isCloudinaryConfigured } from "./config/cloudinary.js";
 
 const app = express();
+app.set("trust proxy", 1);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -116,6 +118,7 @@ app.use("/api/contact-queries", contactQueryRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/happy-clients", happyClientRoutes);
 app.use("/api/sell-requests", sellCarRoutes);
+app.use("/api/cookie-consents", cookieConsentRoutes);
 
 app.use(errorHandler);
 

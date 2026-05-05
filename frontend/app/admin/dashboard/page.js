@@ -8,19 +8,40 @@ import {
   isDirectCloudinaryUploadEnabled,
   uploadCarImageClientSide,
 } from "../../../lib/cloudinaryDirectUpload";
+import {
+  IconOverview,
+  IconPlusSquare,
+  IconGrid,
+  IconStar,
+  IconSmile,
+  IconMail,
+  IconCookie,
+  IconCart,
+  IconCarSell,
+} from "../../../components/admin/AdminNavIcons";
 
 const ADMIN_AUTH_KEY = "ydc_admin_logged_in";
 const API_URL = getApiUrl();
 
 const menuItems = [
-  { label: "Overview", icon: "◈", badge: null },
-  { label: "New Cars", icon: "✦", badge: null },
-  { label: "Inventory", icon: "▦", badge: null },
-  { label: "Reviews", icon: "★", badge: null },
-  { label: "Happy Customers", icon: "☺", badge: null },
-  { label: "Contact Queries", icon: "☏", badge: null },
-  { label: "Buy requests", icon: "🛒", badge: null },
-  { label: "Sell requests", icon: "🙏", badge: null },
+  { label: "Overview", Icon: IconOverview },
+  { label: "New Cars", Icon: IconPlusSquare },
+  { label: "Inventory", Icon: IconGrid },
+  { label: "Reviews", Icon: IconStar },
+  { label: "Happy Customers", Icon: IconSmile },
+  { label: "Contact Queries", Icon: IconMail },
+  { label: "Cookie consents", Icon: IconCookie },
+  { label: "Buy requests", Icon: IconCart },
+  { label: "Sell requests", Icon: IconCarSell },
+];
+
+/** Sidebar grouping — order matches product workflow */
+const MENU_SECTIONS = [
+  { title: "Dashboard", labels: ["Overview"] },
+  { title: "Catalog", labels: ["New Cars", "Inventory"] },
+  { title: "Reputation", labels: ["Reviews", "Happy Customers"] },
+  { title: "Leads", labels: ["Contact Queries", "Buy requests", "Sell requests"] },
+  { title: "Privacy", labels: ["Cookie consents"] },
 ];
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const STATUS_OPTIONS = ["Pending", "Contacted", "Resolved"];
@@ -44,6 +65,45 @@ const getStatusButtonClass = (status, currentStatus) => {
   }
 
   return "bg-white border-slate-300 text-slate-600 hover:bg-slate-50";
+};
+
+const cookieDecisionLabel = (decision) => {
+  if (decision === "accepted") return "Accept all";
+  if (decision === "essential_only") return "Essential only";
+  if (decision === "rejected") return "Reject optional";
+  return decision || "Unknown";
+};
+
+const cookieDecisionPillClass = (decision) => {
+  if (decision === "accepted") {
+    return "bg-emerald-50 text-emerald-900 ring-1 ring-emerald-200/90";
+  }
+  if (decision === "essential_only") {
+    return "bg-amber-50 text-amber-950 ring-1 ring-amber-200/90";
+  }
+  if (decision === "rejected") {
+    return "bg-slate-100 text-slate-800 ring-1 ring-slate-300/80";
+  }
+  return "bg-slate-50 text-slate-600 ring-1 ring-slate-200";
+};
+
+const cookieBoolPillClass = (on) =>
+  on
+    ? "bg-emerald-50 text-emerald-900 ring-1 ring-emerald-200/80"
+    : "bg-slate-50 text-slate-500 ring-1 ring-slate-200/80";
+
+const formatConsentRelative = (iso) => {
+  if (!iso) return "";
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return "";
+  const diff = Date.now() - t;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 48) return `${hrs} hr ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days} days ago`;
 };
 
 export default function AdminDashboardPage() {
@@ -77,6 +137,7 @@ export default function AdminDashboardPage() {
   const [reviews, setReviews] = useState([]);
   const [deletingReviewId, setDeletingReviewId] = useState("");
   const [happyClients, setHappyClients] = useState([]);
+  const [cookieConsents, setCookieConsents] = useState([]);
   const [deletingHappyClientId, setDeletingHappyClientId] = useState("");
   const [happyClientForm, setHappyClientForm] = useState({
     name: "",
@@ -199,6 +260,18 @@ export default function AdminDashboardPage() {
         setReviews(reviewsData.data || []);
         setHappyClients(happyClientsData.data || []);
 
+        let cookieConsentList = [];
+        try {
+          const ccRes = await fetch(apiUrl("cookie-consents"), fetchOpts);
+          const ccJson = await ccRes.json().catch(() => ({}));
+          if (ccRes.ok && Array.isArray(ccJson.data)) {
+            cookieConsentList = ccJson.data;
+          }
+        } catch {
+          /* Older backends without this route — leave list empty */
+        }
+        setCookieConsents(cookieConsentList);
+
         let sellList = [];
         try {
           const sellRes = await fetch(apiUrl("sell-requests"), fetchOpts);
@@ -297,6 +370,14 @@ export default function AdminDashboardPage() {
       icon: "📩",
       glow: "shadow-amber-200/70",
     },
+    {
+      label: "Cookie consents",
+      value: String(cookieConsents.length),
+      detail: "Public banner choices (DB TTL 7 days)",
+      color: "from-violet-500 to-purple-600",
+      icon: "🍪",
+      glow: "shadow-violet-200/70",
+    },
   ];
 
   const renderedMenuItems = menuItems.map((item) => {
@@ -315,6 +396,9 @@ export default function AdminDashboardPage() {
     if (item.label === "Contact Queries") {
       return { ...item, badge: String(contactQueries.length) };
     }
+    if (item.label === "Cookie consents") {
+      return { ...item, badge: String(cookieConsents.length) };
+    }
     if (item.label === "Buy requests") {
       return { ...item, badge: String(buyRequests.length) };
     }
@@ -323,6 +407,18 @@ export default function AdminDashboardPage() {
     }
     return item;
   });
+
+  const itemByLabel = Object.fromEntries(renderedMenuItems.map((item) => [item.label, item]));
+
+  const cookieConsentSummary = {
+    total: cookieConsents.length,
+    accepted: cookieConsents.filter((r) => r.decision === "accepted").length,
+    essentialOnly: cookieConsents.filter((r) => r.decision === "essential_only").length,
+    rejected: cookieConsents.filter((r) => r.decision === "rejected").length,
+    analyticsEnabled: cookieConsents.filter((r) => r.preferences?.analytics).length,
+    marketingEnabled: cookieConsents.filter((r) => r.preferences?.marketing).length,
+  };
+
   const recentBuyRequests = buyRequests.filter((item) => {
     const createdAt = new Date(item.createdAt || item.updatedAt || 0).getTime();
     return Date.now() - createdAt <= ONE_DAY_MS;
@@ -847,103 +943,110 @@ export default function AdminDashboardPage() {
       </header>
 
       <div className="flex w-full gap-0 px-0 py-0">
-        <motion.aside
-          initial={{ x: -16, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={{ type: "spring", stiffness: 220, damping: 24 }}
-          className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-200/70 bg-white/85 p-4 shadow-xl shadow-slate-200/40 backdrop-blur-md transition supports-[backdrop-filter]:bg-white/80 lg:sticky lg:top-[69px] lg:h-[calc(100dvh-69px)] lg:rounded-none lg:translate-x-0 lg:shadow-none lg:backdrop-blur-lg ${
+        <aside
+          className={`fixed inset-y-0 left-0 z-40 flex w-[280px] flex-col border-r border-slate-700/90 bg-slate-900 p-4 shadow-2xl shadow-black/50 lg:sticky lg:top-[69px] lg:h-[calc(100dvh-69px)] lg:w-72 lg:shadow-none ${
             sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
           }`}
         >
-          <div className="mb-3 flex items-center justify-between lg:hidden">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-              Menu
-            </p>
+          <div className="mb-4 flex items-center justify-between border-b border-slate-700/70 pb-3 lg:hidden">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Navigation</p>
             <button
               type="button"
               onClick={() => setSidebarOpen(false)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 text-slate-700"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-600 bg-slate-800 text-sm font-medium text-slate-200 transition hover:bg-slate-700"
               aria-label="Close sidebar"
             >
-              X
+              ✕
             </button>
           </div>
 
-          <div className="mb-4 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-indigo-50 to-cyan-50 p-4 text-slate-800 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-700">
-              Your Dreams Cars
+          <div className="mb-5 hidden border-b border-slate-700/70 pb-5 lg:block">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+              Your Dream Cars
             </p>
-            <p className="mt-1 text-lg font-bold text-slate-900">Admin Panel</p>
-            <div className="mt-3 flex items-center justify-between rounded-xl border border-blue-100 bg-white/90 px-3 py-2">
-              <span className="text-xs text-slate-600">Current Mode</span>
-              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
-                Live
+            <p className="mt-1 text-lg font-bold tracking-tight text-white">Admin console</p>
+            <div className="mt-3 flex items-center gap-2 rounded-lg bg-slate-800/90 px-3 py-2 ring-1 ring-slate-700/80">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-40" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
               </span>
+              <span className="text-xs font-medium text-slate-300">Connected · Live data</span>
             </div>
           </div>
 
-          <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-            <p className="text-xs font-medium text-slate-500">Quick Search</p>
-            <input
-              type="text"
-              placeholder="Search menu..."
-              className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs"
-            />
+          <div className="mb-4 lg:hidden">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+              Your Dream Cars
+            </p>
+            <p className="mt-0.5 text-base font-bold text-white">Admin</p>
           </div>
 
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-            Navigation
-          </p>
-          <nav className="space-y-1.5">
-            {renderedMenuItems.map((item) => (
-              <motion.button
-                key={item.label}
-                type="button"
-                onClick={() => {
-                  setActiveMenu(item.label);
-                  closeCarFormPanel();
-                  setNewCarMessage("");
-                  setNewCarError("");
-                  setHappyClientMessage("");
-                  setHappyClientError("");
-                  setSidebarOpen(false);
-                }}
-                whileHover={{ x: 4, scale: 1.01 }}
-                whileTap={{ scale: 0.97 }}
-                transition={{ type: "spring", stiffness: 300, damping: 22 }}
-                className={`relative flex w-full items-center gap-2 rounded-xl px-4 py-2.5 text-left text-sm font-semibold transition ${
-                  activeMenu === item.label
-                    ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-200/60"
-                    : "text-slate-700 hover:bg-slate-100/90 active:bg-slate-200/70"
-                }`}
-              >
-                {activeMenu === item.label ? (
-                  <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r bg-blue-200" />
-                ) : null}
-                <span className="text-xs">{item.icon}</span>
-                <span>{item.label}</span>
-                {item.badge ? (
-                  <span
-                    className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                      activeMenu === item.label
-                        ? "bg-white/20 text-white"
-                        : "bg-slate-200 text-slate-700"
-                    }`}
-                  >
-                    {item.badge}
-                  </span>
-                ) : null}
-              </motion.button>
-            ))}
+          <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain pr-0.5 [-ms-overflow-style:none] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600">
+            {MENU_SECTIONS.map((section) => (
+                <div key={section.title} className="mb-3">
+                  <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">
+                    {section.title}
+                  </p>
+                  <div className="space-y-0.5">
+                    {section.labels.map((label) => {
+                      const item = itemByLabel[label];
+                      if (!item) return null;
+                      const Icon = item.Icon;
+                      const isActive = activeMenu === item.label;
+                      return (
+                        <motion.button
+                          key={item.label}
+                          type="button"
+                          onClick={() => {
+                            setActiveMenu(item.label);
+                            closeCarFormPanel();
+                            setNewCarMessage("");
+                            setNewCarError("");
+                            setHappyClientMessage("");
+                            setHappyClientError("");
+                            setSidebarOpen(false);
+                          }}
+                          whileHover={{ x: 2 }}
+                          whileTap={{ scale: 0.99 }}
+                          transition={{ type: "spring", stiffness: 400, damping: 28 }}
+                          className={`relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${
+                            isActive
+                              ? "bg-blue-600 text-white shadow-lg shadow-blue-950/50 ring-1 ring-blue-500/40"
+                              : "text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+                          }`}
+                        >
+                          <span
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                              isActive ? "bg-white/15 text-white" : "bg-slate-800 text-slate-400"
+                            }`}
+                          >
+                            <Icon className="h-5 w-5" aria-hidden />
+                          </span>
+                          <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                          {item.badge ? (
+                            <span
+                              className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-bold tabular-nums ${
+                                isActive ? "bg-white/20 text-white" : "bg-slate-700 text-slate-200"
+                              }`}
+                            >
+                              {item.badge}
+                            </span>
+                          ) : null}
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
           </nav>
 
-          <div className="mt-auto rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-              Active Section
+          <div className="mt-auto border-t border-slate-700/70 pt-4">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">
+              Active view
             </p>
-            <p className="mt-1 text-sm font-bold text-slate-900">{activeMenu}</p>
+            <p className="mt-1 truncate text-sm font-semibold text-white">{activeMenu}</p>
           </div>
-        </motion.aside>
+        </aside>
 
         {sidebarOpen ? (
           <button
@@ -954,7 +1057,7 @@ export default function AdminDashboardPage() {
           />
         ) : null}
 
-        <section className="w-full space-y-6 p-4 md:p-6">
+        <section className="w-full min-w-0 space-y-6 p-4 md:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div>
               <p className="text-sm font-semibold text-slate-900">
@@ -1343,6 +1446,382 @@ export default function AdminDashboardPage() {
                 </table>
               </div>
             </article>
+          ) : activeMenu === "Cookie consents" ? (
+            <div className="space-y-4 sm:space-y-6">
+              <motion.section
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25 }}
+                className="relative min-w-0 overflow-hidden rounded-2xl border border-amber-200/70 bg-gradient-to-br from-amber-50/95 via-white to-violet-50/80 p-4 shadow-md shadow-amber-900/5 sm:p-6 md:p-8"
+              >
+                <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-amber-200/35 blur-3xl" />
+                <div className="pointer-events-none absolute -bottom-20 left-1/4 h-40 w-40 rounded-full bg-violet-200/30 blur-3xl" />
+                <div className="relative flex min-w-0 flex-col gap-5 md:flex-row md:items-start md:justify-between md:gap-6">
+                  <div className="flex min-w-0 gap-3 sm:gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white shadow-md shadow-amber-900/10 ring-1 ring-amber-100 sm:h-14 sm:w-14">
+                      <IconCookie className="h-7 w-7 text-amber-700 sm:h-8 sm:w-8" aria-hidden />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-900/70 sm:text-[11px]">
+                        Privacy & compliance
+                      </p>
+                      <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl md:text-3xl">
+                        Cookie consent log
+                      </h2>
+                      <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-600 break-words">
+                        Visitor choices from the public banner. Records auto-delete from MongoDB after{" "}
+                        <span className="font-semibold text-slate-800">7 days</span> (TTL on{" "}
+                        <code className="break-all rounded bg-white/80 px-1 py-0.5 text-[11px] ring-1 ring-amber-100 sm:text-xs">
+                          expiresAt
+                        </code>
+                        ).
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center md:flex-col md:items-end">
+                    <span className="inline-flex w-fit items-center gap-2 rounded-full bg-white/90 px-3 py-2 text-xs font-bold text-slate-900 shadow-sm ring-1 ring-amber-200/80 sm:px-4 sm:text-sm">
+                      <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.7)]" />
+                      {cookieConsentSummary.total} events
+                    </span>
+                    <p className="text-xs text-slate-500 md:max-w-[200px] md:text-right">
+                      Newest submissions appear first.
+                    </p>
+                  </div>
+                </div>
+              </motion.section>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
+                {[
+                  {
+                    label: "Total logged",
+                    value: cookieConsentSummary.total,
+                    hint: "Banner submissions in retention window",
+                    accent: "from-slate-700 to-slate-900",
+                  },
+                  {
+                    label: "Accept all",
+                    value: cookieConsentSummary.accepted,
+                    hint: "Allowed analytics & marketing",
+                    accent: "from-emerald-500 to-teal-600",
+                  },
+                  {
+                    label: "Essential only",
+                    value: cookieConsentSummary.essentialOnly,
+                    hint: "Optional cookies off",
+                    accent: "from-amber-500 to-orange-600",
+                  },
+                  {
+                    label: "Reject optional",
+                    value: cookieConsentSummary.rejected,
+                    hint: "Declined non-essential",
+                    accent: "from-slate-500 to-slate-700",
+                  },
+                ].map((card, idx) => (
+                  <motion.article
+                    key={card.label}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2, delay: idx * 0.04 }}
+                    className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+                  >
+                    <div className={`h-1 bg-gradient-to-r ${card.accent}`} />
+                    <div className="p-4 sm:p-5">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        {card.label}
+                      </p>
+                      <p className="mt-2 text-2xl font-extrabold tabular-nums text-slate-900 sm:text-3xl">
+                        {loadingData ? "…" : card.value}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">{card.hint}</p>
+                    </div>
+                  </motion.article>
+                ))}
+              </div>
+
+              <motion.article
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.22, delay: 0.08 }}
+                className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+              >
+                <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-4 sm:px-5 md:px-6">
+                  <h3 className="text-base font-bold text-slate-900 sm:text-lg">Detailed log</h3>
+                  <p className="mt-1 flex flex-col gap-1 text-xs text-slate-500 sm:flex-row sm:flex-wrap sm:gap-x-3">
+                    <span>
+                      <span className="text-slate-400">Analytics on:</span>{" "}
+                      <span className="font-semibold text-slate-700">
+                        {cookieConsentSummary.analyticsEnabled}
+                      </span>
+                    </span>
+                    <span className="hidden sm:inline text-slate-300" aria-hidden>
+                      ·
+                    </span>
+                    <span>
+                      <span className="text-slate-400">Marketing on:</span>{" "}
+                      <span className="font-semibold text-slate-700">
+                        {cookieConsentSummary.marketingEnabled}
+                      </span>
+                    </span>
+                  </p>
+                  <p className="mt-2 text-[11px] text-slate-400 lg:hidden">
+                    Tip: on small screens each event is shown as a card. Widen the window or use a
+                    tablet for the full table.
+                  </p>
+                </div>
+
+                {dataError ? (
+                  <p className="mx-4 my-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 sm:mx-5 md:mx-6">
+                    {dataError}
+                  </p>
+                ) : null}
+
+                {loadingData ? (
+                  <>
+                    <div className="flex justify-center py-14 lg:hidden">
+                      <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-500">
+                        <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+                        Loading consent events…
+                      </span>
+                    </div>
+                    <div className="hidden lg:block lg:overflow-x-auto lg:px-2 lg:pb-4 lg:pt-2">
+                      <table className="w-full min-w-[920px] text-left text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-white text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                            <th className="px-4 py-3">When</th>
+                            <th className="px-3 py-3">Choice</th>
+                            <th className="px-3 py-3">Analytics</th>
+                            <th className="px-3 py-3">Marketing</th>
+                            <th className="px-3 py-3">Page</th>
+                            <th className="px-3 py-3">IP</th>
+                            <th className="px-3 py-3">Device</th>
+                            <th className="px-4 py-3">Purges</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          <tr>
+                            <td
+                              colSpan={8}
+                              className="px-4 py-16 text-center text-sm font-medium text-slate-500"
+                            >
+                              <span className="inline-flex items-center gap-2">
+                                <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+                                Loading consent events…
+                              </span>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                ) : cookieConsents.length === 0 ? (
+                  <div className="px-4 py-6 sm:px-6">
+                    <div className="mx-auto flex max-w-lg flex-col items-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-6 py-12 text-center sm:px-8 sm:py-14">
+                      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 sm:h-16 sm:w-16">
+                        <IconCookie className="h-8 w-8 text-slate-400 sm:h-9 sm:w-9" aria-hidden />
+                      </div>
+                      <p className="text-base font-semibold text-slate-800">
+                        No consent events yet
+                      </p>
+                      <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                        When visitors accept or adjust cookies on the public site, entries show up
+                        here automatically for seven days.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-3 px-3 pb-4 pt-3 sm:px-4 lg:hidden">
+                      {cookieConsents.map((row) => (
+                        <div
+                          key={row._id}
+                          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                Submitted
+                              </p>
+                              <p className="mt-0.5 text-sm font-semibold leading-snug text-slate-900 break-words">
+                                {row.createdAt
+                                  ? new Date(row.createdAt).toLocaleString()
+                                  : "—"}
+                              </p>
+                              {row.createdAt ? (
+                                <p className="mt-0.5 text-xs text-slate-500">
+                                  {formatConsentRelative(row.createdAt)}
+                                </p>
+                              ) : null}
+                            </div>
+                            <span
+                              className={`inline-flex shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${cookieDecisionPillClass(row.decision)}`}
+                            >
+                              {cookieDecisionLabel(row.decision)}
+                            </span>
+                          </div>
+                          <dl className="mt-4 grid gap-3 border-t border-slate-100 pt-4 text-xs">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <dt className="font-medium text-slate-500">Analytics</dt>
+                              <dd>
+                                <span
+                                  className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${cookieBoolPillClass(Boolean(row.preferences?.analytics))}`}
+                                >
+                                  {row.preferences?.analytics ? "On" : "Off"}
+                                </span>
+                              </dd>
+                            </div>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <dt className="font-medium text-slate-500">Marketing</dt>
+                              <dd>
+                                <span
+                                  className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${cookieBoolPillClass(Boolean(row.preferences?.marketing))}`}
+                                >
+                                  {row.preferences?.marketing ? "On" : "Off"}
+                                </span>
+                              </dd>
+                            </div>
+                            <div className="sm:col-span-2">
+                              <dt className="font-medium text-slate-500">Page</dt>
+                              <dd className="mt-1 break-all">
+                                {row.sourceUrl ? (
+                                  <a
+                                    href={row.sourceUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs font-medium text-blue-700 underline decoration-blue-400/40 underline-offset-2 hover:text-blue-900"
+                                  >
+                                    {row.sourceUrl}
+                                  </a>
+                                ) : (
+                                  <span className="text-slate-400">—</span>
+                                )}
+                              </dd>
+                            </div>
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <dt className="shrink-0 font-medium text-slate-500">IP</dt>
+                              <dd className="break-all font-mono text-[11px] text-slate-700">
+                                {row.ip || "—"}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt className="font-medium text-slate-500">Device</dt>
+                              <dd
+                                className="mt-1 text-[11px] leading-relaxed text-slate-600 break-words"
+                                title={row.userAgent || ""}
+                              >
+                                {row.userAgent || "—"}
+                              </dd>
+                            </div>
+                            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+                              <dt className="font-medium text-slate-500">DB purge</dt>
+                              <dd className="text-right text-xs">
+                                <span className="font-semibold text-slate-800">
+                                  {row.expiresAt
+                                    ? new Date(row.expiresAt).toLocaleDateString()
+                                    : "—"}
+                                </span>
+                                <span className="block text-[10px] text-slate-400">TTL cleanup</span>
+                              </dd>
+                            </div>
+                          </dl>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="hidden lg:block lg:overflow-x-auto lg:px-2 lg:pb-4 lg:pt-2">
+                      <table className="w-full min-w-[920px] text-left text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-white text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                            <th className="bg-white px-4 py-3">When</th>
+                            <th className="bg-white px-3 py-3">Choice</th>
+                            <th className="bg-white px-3 py-3">Analytics</th>
+                            <th className="bg-white px-3 py-3">Marketing</th>
+                            <th className="bg-white px-3 py-3">Page</th>
+                            <th className="bg-white px-3 py-3">IP</th>
+                            <th className="bg-white px-3 py-3">Device</th>
+                            <th className="bg-white px-4 py-3">Purges</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {cookieConsents.map((row, ri) => (
+                            <tr
+                              key={row._id}
+                              className={ri % 2 === 0 ? "bg-white" : "bg-slate-50/40"}
+                            >
+                              <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-700">
+                                <div className="font-semibold text-slate-900">
+                                  {row.createdAt
+                                    ? new Date(row.createdAt).toLocaleString()
+                                    : "—"}
+                                </div>
+                                {row.createdAt ? (
+                                  <div className="text-[11px] text-slate-500">
+                                    {formatConsentRelative(row.createdAt)}
+                                  </div>
+                                ) : null}
+                              </td>
+                              <td className="px-3 py-3">
+                                <span
+                                  className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${cookieDecisionPillClass(row.decision)}`}
+                                >
+                                  {cookieDecisionLabel(row.decision)}
+                                </span>
+                              </td>
+                              <td className="px-3 py-3">
+                                <span
+                                  className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${cookieBoolPillClass(Boolean(row.preferences?.analytics))}`}
+                                >
+                                  {row.preferences?.analytics ? "On" : "Off"}
+                                </span>
+                              </td>
+                              <td className="px-3 py-3">
+                                <span
+                                  className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${cookieBoolPillClass(Boolean(row.preferences?.marketing))}`}
+                                >
+                                  {row.preferences?.marketing ? "On" : "Off"}
+                                </span>
+                              </td>
+                              <td className="max-w-[200px] px-3 py-3">
+                                {row.sourceUrl ? (
+                                  <a
+                                    href={row.sourceUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="line-clamp-2 break-all text-xs font-medium text-blue-700 underline decoration-blue-400/40 underline-offset-2 hover:text-blue-900"
+                                  >
+                                    {row.sourceUrl}
+                                  </a>
+                                ) : (
+                                  <span className="text-xs text-slate-400">—</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-3 font-mono text-[11px] text-slate-600">
+                                {row.ip || "—"}
+                              </td>
+                              <td className="max-w-[260px] px-3 py-3">
+                                <p
+                                  className="line-clamp-2 text-xs text-slate-600"
+                                  title={row.userAgent || ""}
+                                >
+                                  {row.userAgent || "—"}
+                                </p>
+                              </td>
+                              <td className="whitespace-nowrap px-4 py-3 text-xs">
+                                <div className="font-medium text-slate-800">
+                                  {row.expiresAt
+                                    ? new Date(row.expiresAt).toLocaleDateString()
+                                    : "—"}
+                                </div>
+                                <div className="text-[11px] text-slate-500">TTL cleanup</div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+              </motion.article>
+            </div>
           ) : activeMenu === "Buy requests" ? (
             <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="mb-4 flex items-center justify-between">

@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
+import CookieConsentBanner from "./CookieConsentBanner";
 
 export default function SiteChrome({ children }) {
   const pathname = usePathname();
@@ -22,6 +23,7 @@ export default function SiteChrome({ children }) {
       <Navbar />
       {children}
       <Footer />
+      <CookieConsentBanner />
     </div>
   );
 }
