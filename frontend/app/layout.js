@@ -1,9 +1,15 @@
 import "./globals.css";
 import SiteChrome from "../components/SiteChrome";
+import logo from "../logo.png";
 
 export const metadata = {
   title: "Car Sells",
   description: "Buy and sell cars",
+  icons: {
+    icon: logo.src,
+    shortcut: logo.src,
+    apple: logo.src,
+  },
 };
 
 export default function RootLayout({ children }) {
