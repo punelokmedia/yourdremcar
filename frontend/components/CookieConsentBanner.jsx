@@ -209,14 +209,14 @@ export default function CookieConsentBanner() {
 
   return (
     <div
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-[100] flex justify-center p-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:p-6"
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-[100] flex justify-center p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:p-6"
       role="dialog"
       aria-modal="true"
       aria-labelledby="cookie-banner-title"
       aria-describedby="cookie-banner-desc"
     >
-      <div className="pointer-events-auto w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_-4px_40px_rgba(15,23,42,0.12),0_25px_50px_-12px_rgba(15,23,42,0.25)]">
-        <div className="flex gap-4 border-b border-slate-100 bg-slate-50/80 px-5 py-4 md:px-6 md:py-5">
+      <div className="pointer-events-auto max-h-[min(80dvh,640px)] w-full max-w-4xl overflow-y-auto overflow-x-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_-4px_40px_rgba(15,23,42,0.12),0_25px_50px_-12px_rgba(15,23,42,0.25)]">
+        <div className="flex gap-4 border-b border-slate-100 bg-slate-50/80 px-4 py-3 md:px-6 md:py-5">
           <div
             className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 sm:flex"
             aria-hidden
@@ -355,12 +355,12 @@ export default function CookieConsentBanner() {
           </div>
         ) : null}
 
-        <div className="flex flex-col gap-3 bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between md:px-6 md:py-4">
+        <div className="flex flex-col gap-2 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 md:px-6 md:py-4">
           <p className="order-2 text-[11px] leading-snug text-slate-500 sm:order-1 sm:max-w-md">
             Consent is stored on your device for 7 days. Aggregated records may be kept on our
             servers for the same period for compliance, then deleted automatically.
           </p>
-          <div className="order-1 flex flex-wrap gap-2 sm:order-2 sm:justify-end">
+          <div className="order-1 grid grid-cols-1 gap-2 sm:order-2 sm:flex sm:flex-wrap sm:justify-end">
             <button
               type="button"
               disabled={busy}

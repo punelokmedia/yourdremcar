@@ -9,8 +9,14 @@ import {
   TEL_HREF,
   WHATSAPP_URL,
 } from "../lib/contactInfo";
+import CarSplitRow from "../components/CarSplitRow";
+import HeroCarScroller from "../components/HeroCarScroller";
+
+const HERO_VIDEO_SRC =
+  "https://videos.pexels.com/video-files/7154208/7154208-hd_1920_1080_25fps.mp4";
 
 const galleryFilters = ["All", "Petrol", "CNG"];
+const GALLERY_PAGE_SIZE = 4;
 const formatPrice = (value) => {
   const num = Number(value);
   if (!Number.isFinite(num)) return "Price on request";
@@ -115,10 +121,9 @@ export default function HomePage() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [visibleCarsCount, setVisibleCarsCount] = useState(9);
+  const [visibleCarsCount, setVisibleCarsCount] = useState(GALLERY_PAGE_SIZE);
   const [activeGalleryFilter, setActiveGalleryFilter] = useState("All");
   const [statusMessage, setStatusMessage] = useState("");
-  const [heroImageBroken, setHeroImageBroken] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -146,6 +151,7 @@ export default function HomePage() {
   const [leadError, setLeadError] = useState("");
   const buyCarHintAppliedRef = useRef(false);
   const [reviews, setReviews] = useState([]);
+  const [happyClients, setHappyClients] = useState([]);
   const [reviewForm, setReviewForm] = useState({
     name: "",
     rating: 0,
@@ -154,12 +160,24 @@ export default function HomePage() {
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewFeedback, setReviewFeedback] = useState("");
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const normalizedCars = useMemo(() => {
     const apiBase = getApiUrl();
     return cars.map((car) => normalizeCar(car, apiBase));
   }, [cars]);
+  const featuredCars = useMemo(
+    () => normalizedCars.slice(0, 8),
+    [normalizedCars]
+  );
+  const heroScrollCars = useMemo(() => {
+    const available = normalizedCars.filter(
+      (car) => car.availability !== "Sold" && car.availability !== "Sold out"
+    );
+    const source = available.length ? available : normalizedCars;
+    return source.slice(0, 12);
+  }, [normalizedCars]);
   const activeCar =
-    normalizedCars[activeIndex] || normalizeCar({}, getApiUrl());
+    featuredCars[activeIndex] || normalizeCar({}, getApiUrl());
   const galleryCars = normalizedCars;
   const aboutPreviewCars =
     normalizedCars.length >= 3
@@ -169,6 +187,10 @@ export default function HomePage() {
     if (activeGalleryFilter === "All") return galleryCars;
     return galleryCars.filter((car) => car.category === activeGalleryFilter);
   }, [activeGalleryFilter, galleryCars]);
+  const recentHappyClients = useMemo(
+    () => happyClients.slice(0, 3),
+    [happyClients]
+  );
 
   useEffect(() => {
     if (carsLoading || leadTab !== "buy" || buyCarHintAppliedRef.current) return;
@@ -217,12 +239,14 @@ export default function HomePage() {
           if (!cancelled) setCarsError(MISSING_NEXT_PUBLIC_API_URL);
           return;
         }
-        const [carsRes, reviewsRes] = await Promise.all([
+        const [carsRes, reviewsRes, hcRes] = await Promise.all([
           fetch(`${API_URL}/cars`, fetchOpts),
           fetch(`${API_URL}/reviews`, fetchOpts),
+          fetch(`${API_URL}/happy-clients`, fetchOpts),
         ]);
         const carsData = await carsRes.json();
         const reviewsData = await reviewsRes.json();
+        const hcData = await hcRes.json();
         if (cancelled) return;
         if (carsRes.ok) {
           setCars(carsData.data || []);
@@ -230,6 +254,7 @@ export default function HomePage() {
           setCarsError(carsData.message || "Failed to load cars");
         }
         if (reviewsRes.ok) setReviews(reviewsData.data || []);
+        if (hcRes.ok) setHappyClients(hcData.data || []);
       } catch (error) {
         if (!cancelled) setCarsError(error.message || "Failed to load cars");
       } finally {
@@ -285,17 +310,42 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    if (normalizedCars.length <= 1) return undefined;
-    const interval = setInterval(() => {
-      setActiveIndex((prev) => (prev + 1) % normalizedCars.length);
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [normalizedCars.length]);
+    let cancelled = false;
+    const loadHappyClients = async () => {
+      try {
+        const API_URL = getApiUrl();
+        if (!API_URL) return;
+        const r = await fetch(`${API_URL}/happy-clients`, {
+          cache: "no-store",
+          headers: { Accept: "application/json" },
+        });
+        const data = await r.json();
+        if (!cancelled && r.ok) setHappyClients(data.data || []);
+      } catch {
+        /* ignore */
+      }
+    };
+    const onHappyClientsChanged = () => loadHappyClients();
+    window.addEventListener("happy-clients-changed", onHappyClientsChanged);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("happy-clients-changed", onHappyClientsChanged);
+    };
+  }, []);
 
   useEffect(() => {
-    setHeroImageBroken(false);
-  }, [activeCar.image]);
+    if (featuredCars.length === 0) return;
+    if (activeIndex >= featuredCars.length) setActiveIndex(0);
+  }, [activeIndex, featuredCars.length]);
+
+  useEffect(() => {
+    if (featuredCars.length <= 1) return undefined;
+    const interval = setInterval(() => {
+      setActiveIndex((prev) => (prev + 1) % featuredCars.length);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [featuredCars.length]);
 
   useEffect(() => {
     if (!activeCar.name) return;
@@ -404,6 +454,7 @@ export default function HomePage() {
         carName: activeCar?.name || prev.carName,
       }));
     }
+    setIsLeadModalOpen(true);
   };
 
   const handleBuyLeadSubmit = async (e) => {
@@ -512,151 +563,107 @@ export default function HomePage() {
     }
   };
 
+  const handleBuyCar = (car) => {
+    if (car?.name) {
+      setBuyLead((prev) => ({ ...prev, carName: car.name }));
+      setFormData((prev) => ({ ...prev, carName: car.name }));
+    }
+    setLeadTab("buy");
+    setLeadMessage("");
+    setLeadError("");
+    setIsLeadModalOpen(true);
+  };
+
   return (
-    <main className="w-full">
-      <section className="relative w-full min-h-[max(85dvh,600px)] overflow-x-clip">
-        {activeCar.image && !heroImageBroken ? (
-          <img
-            src={activeCar.image}
-            alt=""
-            loading="eager"
-            fetchPriority="high"
-            decoding="async"
-            onError={() => setHeroImageBroken(true)}
-            className="absolute inset-0 h-full min-h-full w-full object-cover object-center transition-all duration-700"
-          />
-        ) : (
-          <div className="absolute inset-0 flex min-h-full items-center justify-center bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950">
-            <p className="max-w-sm px-4 text-center text-sm font-medium text-slate-300">
-              {heroImageBroken
-                ? "Image could not be loaded. Re-upload the car in admin, or check API image URLs (Vercel: Blob token or Cloudinary)."
-                : "No image from backend"}
-            </p>
-          </div>
-        )}
-
-        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/80 via-slate-900/50 to-slate-950/25" />
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/75 via-slate-950/10 to-transparent" />
-        <div className="pointer-events-none absolute -left-16 top-20 h-48 w-48 rounded-full bg-cyan-300/20 blur-3xl" />
-
-        <div className="relative z-[1] mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-8 px-4 pb-28 pt-20 sm:pt-24 md:pb-32 lg:grid-cols-[1.1fr_0.9fr] lg:gap-10 lg:pb-36">
-          <motion.div
-            initial={{ opacity: 0, y: 28 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.65 }}
-            className="max-w-2xl text-white"
+    <main className="w-full bg-[#f4f6f8]">
+      <section className="relative w-full overflow-hidden">
+        <div className="absolute inset-0">
+          <video
+            className="h-full w-full object-cover"
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="auto"
           >
-            <p className="inline-block border-b border-white/40 pb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/80 sm:text-xs">
-              Featured Hero Car
-            </p>
-            <h1 className="mt-4 text-3xl font-bold leading-tight sm:text-4xl md:text-5xl">
-              {activeCar.name}
-            </h1>
-            <p className="mt-2.5 text-sm text-white/90 md:text-base">
-              {activeCar.year} Model - Premium condition with smooth performance.
-            </p>
-            <div className="mt-3 flex flex-wrap items-center gap-3">
-              <p className="text-2xl font-semibold md:text-3xl">{activeCar.price}</p>
-              {activeCar.availability === "Sold out" ? (
-                <span className="rounded-full bg-rose-600 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow sm:text-xs">
-                  Sold out
-                </span>
-              ) : activeCar.availability === "Sold" ? (
-                <span className="rounded-full bg-emerald-500 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow sm:text-xs">
-                  Sold
-                </span>
-              ) : (
-                <span className="rounded-full border border-emerald-300/80 bg-emerald-500/25 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-emerald-100 sm:text-xs">
-                  Available
-                </span>
-              )}
-              <span className="rounded-full border border-white/30 bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/90 sm:px-3 sm:py-1 sm:text-xs">
-                Best Deal
-              </span>
-            </div>
-            <div className="mt-4 max-w-xl rounded-2xl border border-white/30 bg-white/15 px-3 py-2.5 backdrop-blur-md sm:px-4 sm:py-3">
-              <p className="text-xs font-extrabold leading-relaxed text-white sm:text-sm md:text-[0.95rem]">
-                We have all inspected cars with{" "}
-                <span className="text-cyan-200">2 Months or 5000 KM</span> Engine
-                Warranty (T&amp;C apply). We have tied up with{" "}
-                <span className="text-cyan-200">Cars24</span> and{" "}
-                <span className="text-cyan-200">Spinny</span>.
-              </p>
-            </div>
+            <source src={HERO_VIDEO_SRC} type="video/mp4" />
+          </video>
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-950/88 via-slate-950/55 to-slate-950/25" />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-slate-950/30" />
+        </div>
 
-            <div className="mt-5 flex flex-wrap items-center gap-3">
+        <div className="relative z-[1] mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-10 sm:py-14 lg:grid lg:min-h-[min(88dvh,800px)] lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-12 lg:py-20">
+          <motion.div
+            initial={{ opacity: 0, y: 22 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="max-w-xl text-white"
+          >
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/70 sm:text-[11px] sm:tracking-[0.24em]">
+              Premium pre-owned · Pune
+            </p>
+            <h1 className="mt-3 text-[1.85rem] font-semibold leading-[1.12] tracking-tight text-blue-100 sm:mt-4 sm:text-4xl md:text-[3.4rem]">
+              Never miss the right car.
+            </h1>
+            <p className="mt-4 max-w-md text-sm leading-relaxed text-white/80 md:text-[15px]">
+              Inspected listings, transparent prices, and a 2-month / 5,000 km
+              warranty. When a car is right for you, buy it in a few steps — no
+              guesswork.
+            </p>
+            <div className="mt-6 flex flex-col gap-3 sm:mt-7 sm:flex-row sm:flex-wrap sm:items-center">
+              <a
+                href="/inventory"
+                className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-950/30 transition hover:bg-blue-500 sm:w-auto"
+              >
+                Buy a car
+              </a>
               <button
+                type="button"
                 onClick={() => setIsFormOpen(true)}
-                className="rounded-full bg-white px-6 py-2 text-xs font-semibold text-slate-900 shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:bg-slate-100 sm:px-7 sm:py-2.5 sm:text-sm"
+                className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-white/30 bg-white/10 px-6 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/20 sm:w-auto"
               >
-                Book your test drive
+                Book a test drive
               </button>
-              <a
-                href={WHATSAPP_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/40 bg-emerald-500/95 text-white shadow-lg shadow-emerald-950/30 ring-1 ring-white/25 transition hover:-translate-y-0.5 hover:bg-emerald-400"
-                aria-label="Chat on WhatsApp"
-              >
-                <WhatsAppGlyph className="h-6 w-6 shrink-0" />
-              </a>
-              <a
-                href={TEL_HREF}
-                className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/40 bg-white/15 text-white backdrop-blur-sm transition hover:-translate-y-0.5 hover:bg-white/25"
-                aria-label={`Call ${CONTACT_PHONE_DISPLAY}`}
-              >
-                <PhoneGlyph className="h-6 w-6 shrink-0" />
-              </a>
+              <div className="flex items-center gap-3">
+                <a
+                  href={WHATSAPP_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-emerald-500 text-white transition hover:bg-emerald-400"
+                  aria-label="Chat on WhatsApp"
+                >
+                  <WhatsAppGlyph className="h-5 w-5 shrink-0" />
+                </a>
+                <a
+                  href={TEL_HREF}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white backdrop-blur-sm transition hover:bg-white/20"
+                  aria-label={`Call ${CONTACT_PHONE_DISPLAY}`}
+                >
+                  <PhoneGlyph className="h-5 w-5 shrink-0" />
+                </a>
+              </div>
+            </div>
+            <div className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-[12px] font-medium text-white/70">
+              <span>100% inspected</span>
+              <span>2 months / 5,000 km warranty</span>
+              <span>Cars24 &amp; Spinny partners</span>
             </div>
           </motion.div>
 
           <motion.div
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.15 }}
-            className="hidden rounded-3xl border border-white/25 bg-white/10 p-4 text-white backdrop-blur-md lg:block lg:p-5"
+            transition={{ duration: 0.6, delay: 0.12 }}
+            className="w-full lg:flex lg:justify-end"
           >
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-200">
-              Why Choose Us
-            </p>
-            <h3 className="mt-1.5 text-xl font-bold leading-snug">Clear. Trusted. Fast Response.</h3>
-            <div className="mt-4 grid gap-2.5">
-              {[
-                { title: "Inspected Cars", value: "100% Verified" },
-                { title: "Warranty Support", value: "2 Months / 5000 KM" },
-                { title: "Trusted Partners", value: "Cars24 + Spinny" },
-              ].map((item) => (
-                <div
-                  key={item.title}
-                  className="rounded-xl border border-white/20 bg-black/20 px-3 py-2.5 lg:px-4 lg:py-3"
-                >
-                  <p className="text-[10px] uppercase tracking-[0.12em] text-white/75 sm:text-xs">
-                    {item.title}
-                  </p>
-                  <p className="mt-0.5 text-xs font-semibold text-white sm:text-sm">{item.value}</p>
-                </div>
-              ))}
-            </div>
+            <HeroCarScroller
+              cars={heroScrollCars}
+              loading={carsLoading}
+              buildDetailsUrl={buildCarDetailsUrl}
+              onBuy={handleBuyCar}
+            />
           </motion.div>
         </div>
-
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.35, duration: 0.5 }}
-          className="absolute bottom-8 left-1/2 flex -translate-x-1/2 gap-2"
-        >
-          {normalizedCars.map((car, index) => (
-            <button
-              key={car._id || `${car.name}-${index}`}
-              onClick={() => setActiveIndex(index)}
-              aria-label={`Go to ${car.name}`}
-              className={`h-1.5 rounded-full transition-all ${
-                index === activeIndex ? "w-10 bg-white" : "w-4 bg-white/45"
-              }`}
-            />
-          ))}
-        </motion.div>
       </section>
 
       {carsLoading ? (
@@ -677,148 +684,103 @@ export default function HomePage() {
       <motion.section
         {...fadeUp}
         id="about-us"
-        className="mx-auto max-w-6xl px-4 py-16"
+        className="mx-auto max-w-6xl px-4 py-10 sm:py-16 md:py-20"
       >
-        <div className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-6 shadow-lg shadow-slate-200/60 md:p-10">
-          <div className="pointer-events-none absolute -left-16 -top-14 h-44 w-44 rounded-full bg-blue-100/70 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-16 -right-16 h-52 w-52 rounded-full bg-cyan-100/70 blur-3xl" />
+        <div className="grid items-center gap-10 md:grid-cols-2 md:gap-14">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+              About us
+            </p>
+            <h2 className="mt-3 text-2xl font-semibold leading-tight tracking-tight text-blue-800 sm:text-3xl md:text-4xl">
+              A quieter way to buy a used car.
+            </h2>
+            <p className="mt-4 text-base leading-relaxed text-slate-600">
+              Your Dream Cars helps buyers in Pune find inspected, fairly priced
+              cars. We keep the process clear — from the first walkaround to
+              paperwork and delivery.
+            </p>
 
-          <div className="relative grid gap-8 md:grid-cols-2">
-            <div>
-              <p className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-blue-700">
-                About Us
-              </p>
-              <h2 className="mt-4 text-3xl font-bold leading-tight text-slate-900 md:text-4xl">
-                Trusted Platform For Premium Used Cars
-              </h2>
-              <p className="mt-4 text-base text-slate-600">
-                Your Dreams Cars helps buyers find premium used cars with verified
-                details and transparent pricing. We focus on trust, quality, and a
-                smooth buying experience.
-              </p>
+            <ul className="mt-6 space-y-3 text-sm text-slate-700">
+              {[
+                "Verified listing details and transparent pricing",
+                "Fast response from the team for every enquiry",
+                "Support from shortlisting through the final decision",
+                "Partner support with Cars24 and Spinny",
+              ].map((point) => (
+                <li key={point} className="flex gap-3">
+                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-900" />
+                  <span>{point}</span>
+                </li>
+              ))}
+            </ul>
 
-              <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                {[
-                  "Verified listing details and transparent pricing policy",
-                  "Fast response from experts for each buy request",
-                  "Support available from shortlisting to final decision",
-                  "Trusted tie-up support with Cars24 and Spinny",
-                ].map((point) => (
-                  <div
-                    key={point}
-                    className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700"
-                  >
-                    {point}
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-6 grid grid-cols-3 gap-3">
-                {[
-                  { label: "Inspection", value: "100% Quality Check" },
-                  { label: "Warranty", value: "2 Months / 5000 KM" },
-                  { label: "Support", value: "Quick Callback" },
-                ].map((item) => (
-                  <div
-                    key={item.label}
-                    className="rounded-xl border border-slate-200 bg-gradient-to-b from-white to-slate-50 p-3 shadow-sm"
-                  >
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-blue-700">
-                      {item.label}
-                    </p>
-                    <p className="mt-1 text-xs font-semibold text-slate-800">{item.value}</p>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-6 grid grid-cols-3 gap-3">
-                {highlights.map((item) => (
-                  <motion.div
-                    key={item.title}
-                    className="rounded-xl border border-slate-200/90 bg-gradient-to-b from-white to-slate-50 p-3 text-center shadow-sm transition hover:border-slate-300 hover:shadow-md"
-                    whileHover={{ y: -4 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <p className="text-xl font-bold text-slate-900">{item.value}</p>
-                    <p className="mt-1 text-xs text-slate-600">{item.title}</p>
-                  </motion.div>
-                ))}
-              </div>
-
-              <div className="mt-7 flex flex-wrap items-center gap-3">
-                <a
-                  href="/about-us"
-                  className="inline-flex rounded-full bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-black"
-                >
-                  Explore Full About Us
-                </a>
-                <a
-                  href="/contact-us"
-                  className="inline-flex rounded-full border border-slate-300 bg-white px-6 py-2.5 text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
-                >
-                  Talk to Expert
-                </a>
-              </div>
+            <div className="mt-8 grid grid-cols-3 gap-4 border-y border-slate-200 py-5">
+              {highlights.map((item) => (
+                <div key={item.title}>
+                  <p className="text-xl font-semibold tracking-tight text-slate-900">
+                    {item.value}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">{item.title}</p>
+                </div>
+              ))}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="relative col-span-2 overflow-hidden rounded-2xl border border-slate-200">
-                {aboutPreviewCars[0].image ? (
-                  <img
-                    src={aboutPreviewCars[0].image}
-                    alt={aboutPreviewCars[0].name}
-                    className="h-52 w-full object-cover md:h-64"
-                  />
-                ) : (
-                  <div className="flex h-52 w-full items-center justify-center bg-slate-200 md:h-64">
-                    <p className="text-xs font-semibold text-slate-600">No backend image</p>
-                  </div>
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                <p className="absolute bottom-3 left-3 rounded-full border border-white/30 bg-black/35 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
-                  Verified & Premium Stock
-                </p>
-              </div>
-              {aboutPreviewCars[1].image ? (
+            <div className="mt-7 flex flex-wrap items-center gap-3">
+              <a
+                href="/about-us"
+                className="inline-flex rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-black"
+              >
+                Our story
+              </a>
+              <a
+                href="/contact-us"
+                className="inline-flex rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
+              >
+                Talk to an expert
+              </a>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="relative col-span-2 overflow-hidden rounded-2xl">
+              {aboutPreviewCars[0].image ? (
                 <img
-                  src={aboutPreviewCars[1].image}
-                  alt={aboutPreviewCars[1].name}
-                  className="h-28 w-full rounded-2xl object-cover md:h-36"
+                  src={aboutPreviewCars[0].image}
+                  alt={aboutPreviewCars[0].name}
+                  className="h-52 w-full object-cover md:h-64"
                 />
               ) : (
-                <div className="flex h-28 w-full items-center justify-center rounded-2xl bg-slate-200 md:h-36">
+                <div className="flex h-52 w-full items-center justify-center bg-slate-200 md:h-64">
                   <p className="text-xs font-semibold text-slate-600">No backend image</p>
                 </div>
               )}
-              {aboutPreviewCars[2].image ? (
-                <img
-                  src={aboutPreviewCars[2].image}
-                  alt={aboutPreviewCars[2].name}
-                  className="h-28 w-full rounded-2xl object-cover md:h-36"
-                />
-              ) : (
-                <div className="flex h-28 w-full items-center justify-center rounded-2xl bg-slate-200 md:h-36">
-                  <p className="text-xs font-semibold text-slate-600">No backend image</p>
-                </div>
-              )}
-              <div className="col-span-2 rounded-2xl border border-slate-200/90 bg-gradient-to-r from-blue-50 via-white to-cyan-50 p-4 shadow-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-700">
-                      Customer Rating
-                    </p>
-                    <p className="mt-1 text-2xl font-bold text-slate-900">4.9/5</p>
-                    <p className="text-xs text-slate-600">
-                      From thousands of happy buyers
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-blue-200 bg-white px-4 py-2 text-center shadow-sm">
-                    <p className="text-xs font-semibold text-slate-600">On-Time Support</p>
-                    <p className="text-lg font-bold text-slate-900">98%</p>
-                  </div>
-                </div>
-              </div>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
+              <p className="absolute bottom-3 left-3 text-xs font-medium text-white">
+                Verified stock · Pune
+              </p>
             </div>
+            {aboutPreviewCars[1].image ? (
+              <img
+                src={aboutPreviewCars[1].image}
+                alt={aboutPreviewCars[1].name}
+                className="h-28 w-full rounded-2xl object-cover md:h-36"
+              />
+            ) : (
+              <div className="flex h-28 w-full items-center justify-center rounded-2xl bg-slate-200 md:h-36">
+                <p className="text-xs font-semibold text-slate-600">No backend image</p>
+              </div>
+            )}
+            {aboutPreviewCars[2].image ? (
+              <img
+                src={aboutPreviewCars[2].image}
+                alt={aboutPreviewCars[2].name}
+                className="h-28 w-full rounded-2xl object-cover md:h-36"
+              />
+            ) : (
+              <div className="flex h-28 w-full items-center justify-center rounded-2xl bg-slate-200 md:h-36">
+                <p className="text-xs font-semibold text-slate-600">No backend image</p>
+              </div>
+            )}
           </div>
         </div>
       </motion.section>
@@ -828,264 +790,174 @@ export default function HomePage() {
         id="gallery"
         className="mx-auto max-w-6xl scroll-mt-28 px-4 pb-16"
       >
-        <div className="rounded-3xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/70 p-5 shadow-lg shadow-slate-200/60 md:p-7">
-          <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-700">
-                Gallery
-              </p>
-              <h2 className="mt-2 text-3xl font-bold text-slate-900">
-                Explore Featured Collection
-              </h2>
-              <p className="mt-2 text-sm text-slate-600">
-                Handpicked premium cars with transparent pricing and verified details.
-              </p>
-            </div>
-            <a
-              href="/gallery"
-              className="rounded-full border border-slate-300 bg-white px-5 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-100"
-            >
-              View Full Gallery
-            </a>
-          </div>
-
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap gap-2">
-              {galleryFilters.map((filter) => (
-                <button
-                  key={filter}
-                  type="button"
-                  onClick={() => {
-                    setActiveGalleryFilter(filter);
-                    setVisibleCarsCount(9);
-                  }}
-                  className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                    activeGalleryFilter === filter
-                      ? "border-blue-600 bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-200/70"
-                      : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
-                  }`}
-                >
-                  {filter}
-                </button>
-              ))}
-            </div>
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-              Showing {Math.min(visibleCarsCount, filteredGalleryCars.length)} of{" "}
-              {filteredGalleryCars.length} cars
+        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+              Inventory
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-blue-800 sm:text-3xl">
+              Cars available now
+            </h2>
+            <p className="mt-2 max-w-xl text-sm text-slate-600">
+              Handpicked listings with clear pricing, fuel type, and ownership details.
             </p>
           </div>
-
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredGalleryCars.slice(0, visibleCarsCount).map((car) => (
-            <motion.article
-              key={car._id || `${car.name}-${car.year}`}
-              className="group overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-sm transition hover:-translate-y-1 hover:border-slate-300 hover:shadow-2xl hover:shadow-slate-300/30"
-              whileHover={{ y: -4 }}
-              transition={{ duration: 0.18 }}
-            >
-              <div className="relative">
-                {car.image ? (
-                  <img
-                    src={car.image}
-                    alt={car.name}
-                    className="h-56 w-full object-cover transition duration-300 group-hover:scale-105"
-                  />
-                ) : (
-                  <div className="flex h-56 w-full items-center justify-center bg-slate-200">
-                    <p className="text-xs font-semibold text-slate-600">No image from backend</p>
-                  </div>
-                )}
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/10 to-transparent" />
-                <div className="absolute left-3 top-3 rounded-full border border-white/40 bg-white/90 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-800">
-                  {car.category || "Featured"}
-                </div>
-                <div className="absolute right-3 top-3 z-10">
-                  {car.availability === "Sold out" ? (
-                    <span className="inline-flex rounded-full bg-rose-600 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-md">
-                      Sold out
-                    </span>
-                  ) : car.availability === "Sold" ? (
-                    <span className="inline-flex rounded-full bg-emerald-600 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-md">
-                      Sold
-                    </span>
-                  ) : (
-                    <span className="inline-flex rounded-full border border-white/60 bg-emerald-600/95 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-md">
-                      Available
-                    </span>
-                  )}
-                </div>
-                <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between">
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-[0.1em] text-white/80">
-                      Ready To Drive
-                    </p>
-                    <p className="text-xl font-bold text-white">{car.price}</p>
-                  </div>
-                  <span className="rounded-full border border-white/30 bg-black/30 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur-sm">
-                    {car.year}
-                  </span>
-                </div>
-              </div>
-              <div className="p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <h3 className="text-lg font-semibold leading-tight text-slate-900">
-                    {car.name}
-                  </h3>
-                  <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">
-                    {car.year}
-                  </span>
-                </div>
-                <p className="mt-2 text-sm text-slate-600">
-                  Verified profile with transparent pricing and quick support.
-                </p>
-                <p className="mt-2 text-xs font-semibold text-slate-500">
-                  Status:{" "}
-                  <span
-                    className={
-                      car.availability === "Sold out"
-                        ? "text-rose-700"
-                        : car.availability === "Sold"
-                          ? "text-emerald-700"
-                          : "text-emerald-600"
-                    }
-                  >
-                    {car.availability || "Available"}
-                  </span>
-                </p>
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <a
-                    href={buildCarDetailsUrl(car)}
-                    className="rounded-full bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-black"
-                  >
-                    View Details
-                  </a>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFormData((prev) => ({ ...prev, carName: car.name }));
-                      setIsFormOpen(true);
-                    }}
-                    className="rounded-full border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
-                  >
-                    Book your test drive
-                  </button>
-                  <span className="ml-auto rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700">
-                    Verified
-                  </span>
-                </div>
-              </div>
-            </motion.article>
-          ))}
-          </div>
-
-          {filteredGalleryCars.length > 9 ? (
-            <div className="mt-8 flex justify-center gap-3">
-              {visibleCarsCount < filteredGalleryCars.length ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setVisibleCarsCount((prev) =>
-                      Math.min(prev + 3, filteredGalleryCars.length)
-                    )
-                  }
-                  className="rounded-full border border-slate-300 bg-white px-6 py-2.5 text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
-                >
-                  Load More
-                </button>
-              ) : null}
-              {visibleCarsCount > 9 ? (
-                <button
-                  type="button"
-                  onClick={() => setVisibleCarsCount(9)}
-                  className="rounded-full border border-slate-300 bg-white px-6 py-2.5 text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
-                >
-                  Show Less
-                </button>
-              ) : null}
-            </div>
-          ) : null}
+          <a
+            href="/gallery"
+            className="rounded-full border border-slate-300 bg-white px-5 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+          >
+            View full gallery
+          </a>
         </div>
+
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            {galleryFilters.map((filter) => (
+              <button
+                key={filter}
+                type="button"
+                onClick={() => {
+                  setActiveGalleryFilter(filter);
+                  setVisibleCarsCount(GALLERY_PAGE_SIZE);
+                }}
+                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                  activeGalleryFilter === filter
+                    ? "bg-slate-900 text-white"
+                    : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                {filter}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs font-medium text-slate-500">
+            {Math.min(visibleCarsCount, filteredGalleryCars.length)} of{" "}
+            {filteredGalleryCars.length} cars
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-5">
+          {filteredGalleryCars.slice(0, visibleCarsCount).map((car, index) => (
+            <CarSplitRow
+              key={car._id || `${car.name}-${car.year}`}
+              car={car}
+              detailsUrl={buildCarDetailsUrl(car)}
+              imageOnRight={index % 2 === 1}
+              onBuy={() => handleBuyCar(car)}
+              onBookTestDrive={() => {
+                setFormData((prev) => ({ ...prev, carName: car.name }));
+                setIsFormOpen(true);
+              }}
+            />
+          ))}
+        </div>
+
+        {filteredGalleryCars.length > GALLERY_PAGE_SIZE ? (
+          <div className="mt-8 flex justify-center gap-3">
+            {visibleCarsCount < filteredGalleryCars.length ? (
+              <button
+                type="button"
+                onClick={() =>
+                  setVisibleCarsCount((prev) =>
+                    Math.min(prev + GALLERY_PAGE_SIZE, filteredGalleryCars.length)
+                  )
+                }
+                className="rounded-full border border-slate-300 bg-white px-6 py-2.5 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
+              >
+                Load more
+              </button>
+            ) : null}
+            {visibleCarsCount > GALLERY_PAGE_SIZE ? (
+              <button
+                type="button"
+                onClick={() => setVisibleCarsCount(GALLERY_PAGE_SIZE)}
+                className="rounded-full border border-slate-300 bg-white px-6 py-2.5 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
+              >
+                Show less
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </motion.section>
 
       <motion.section {...fadeUp} className="mx-auto max-w-6xl px-4 pb-10">
-        <div className="rounded-3xl border border-slate-200 bg-gradient-to-r from-slate-900 to-slate-700 px-6 py-8 text-white transition md:px-10 md:py-10">
-          <h3 className="text-2xl font-bold md:text-3xl">
+        <div className="overflow-hidden rounded-2xl bg-slate-900 px-6 py-10 text-white md:px-10 md:py-12">
+          <h3 className="text-2xl font-semibold tracking-tight md:text-3xl">
             Ready for a test drive?
           </h3>
-          <p className="mt-2 max-w-xl text-slate-200">
-            Select your favorite car from the hero and submit a request. Our team will
-            contact you to schedule your drive, share full details, and the best price
-            options.
+          <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-300 md:text-base">
+            Pick a car and send a request. We will call you to schedule the drive
+            and share the full history and best price.
           </p>
           <button
             type="button"
             onClick={() => setIsFormOpen(true)}
-            className="mt-5 rounded-full bg-white px-6 py-2.5 text-sm font-semibold text-slate-900 transition hover:-translate-y-0.5 hover:bg-slate-100"
+            className="mt-6 rounded-full bg-white px-6 py-2.5 text-sm font-semibold text-slate-900 transition hover:bg-slate-100"
           >
-            Book your test drive
+            Book a test drive
           </button>
         </div>
       </motion.section>
 
       <motion.section {...fadeUp} className="mx-auto max-w-6xl px-4 pb-16">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-blue-700">
-                Reviews
-              </p>
-              <h3 className="text-xl font-bold text-slate-900">What buyers say</h3>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setReviewFeedback("");
-                setIsReviewModalOpen(true);
-              }}
-              className="inline-flex shrink-0 items-center justify-center rounded-full border border-slate-300 bg-slate-50 px-5 py-2.5 text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
-            >
-              Write a review
-            </button>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+              Reviews
+            </p>
+            <h3 className="mt-2 text-2xl font-semibold tracking-tight text-blue-800">
+              What buyers say
+            </h3>
           </div>
-          <div className="mt-6 flex gap-4 overflow-x-auto pb-2 pt-1 [scrollbar-width:thin] [scrollbar-color:rgb(148_163_184)_transparent]">
-            {reviews.length === 0 ? (
-              <p className="text-sm text-slate-500">
-                No reviews yet — be the first to share feedback.
-              </p>
-            ) : (
-              reviews.map((r) => (
-                <article
-                  key={r._id}
-                  className="min-w-[min(100%,260px)] max-w-[280px] shrink-0 rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="font-semibold text-slate-900">{r.name}</p>
-                    <span
-                      className="shrink-0 text-sm leading-none text-amber-500"
-                      aria-label={`${r.rating} out of 5 stars`}
-                    >
-                      {"★".repeat(r.rating)}
-                      <span className="text-slate-300">
-                        {"★".repeat(Math.max(0, 5 - r.rating))}
-                      </span>
+          <button
+            type="button"
+            onClick={() => {
+              setReviewFeedback("");
+              setIsReviewModalOpen(true);
+            }}
+            className="inline-flex shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
+          >
+            Write a review
+          </button>
+        </div>
+        <div className="mt-6 flex gap-4 overflow-x-auto pb-2 pt-1 [scrollbar-width:thin] [scrollbar-color:rgb(148_163_184)_transparent]">
+          {reviews.length === 0 ? (
+            <p className="text-sm text-slate-500">
+              No reviews yet — be the first to share feedback.
+            </p>
+          ) : (
+            reviews.map((r) => (
+              <article
+                key={r._id}
+                className="min-w-[min(100%,260px)] max-w-[280px] shrink-0 rounded-2xl bg-white p-4 ring-1 ring-slate-200/80"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-semibold text-slate-900">{r.name}</p>
+                  <span
+                    className="shrink-0 text-sm leading-none text-amber-500"
+                    aria-label={`${r.rating} out of 5 stars`}
+                  >
+                    {"★".repeat(r.rating)}
+                    <span className="text-slate-300">
+                      {"★".repeat(Math.max(0, 5 - r.rating))}
                     </span>
-                  </div>
-                  <p className="mt-2 text-sm leading-relaxed text-slate-700 line-clamp-5">
-                    {r.comment}
-                  </p>
-                  <p className="mt-3 text-[11px] text-slate-500">
-                    {r.createdAt
-                      ? new Date(r.createdAt).toLocaleDateString(undefined, {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })
-                      : ""}
-                  </p>
-                </article>
-              ))
-            )}
-          </div>
+                  </span>
+                </div>
+                <p className="mt-2 text-sm leading-relaxed text-slate-700 line-clamp-5">
+                  {r.comment}
+                </p>
+                <p className="mt-3 text-[11px] text-slate-500">
+                  {r.createdAt
+                    ? new Date(r.createdAt).toLocaleDateString(undefined, {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })
+                    : ""}
+                </p>
+              </article>
+            ))
+          )}
         </div>
       </motion.section>
 
@@ -1102,258 +974,404 @@ export default function HomePage() {
         id="request-buy-sell"
         className="mx-auto max-w-6xl scroll-mt-28 px-4 pb-10"
       >
-        <div className="relative overflow-hidden rounded-3xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/95 via-white to-cyan-50/90 p-6 shadow-xl shadow-emerald-100/50 md:p-10">
-          <div className="pointer-events-none absolute -right-20 -top-24 h-56 w-56 rounded-full bg-teal-200/40 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-20 -left-16 h-48 w-48 rounded-full bg-emerald-200/35 blur-3xl" />
+        <div className="text-center md:text-left">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+            Buy or sell
+          </p>
+          <h2 className="mt-3 text-2xl font-semibold tracking-tight text-blue-800 md:text-3xl">
+            Request to buy or sell your car
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm text-slate-600 md:text-[15px]">
+            Open a short form, send your details, and our team in Pune will call you
+            with the next steps.
+          </p>
+        </div>
 
-          <div className="relative">
-            <p className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-800">
-              <span aria-hidden>🙏</span> Let us help you
+        <div className="mt-8 grid gap-4 md:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => handleLeadTabChange("buy")}
+            className="group rounded-2xl bg-white p-6 text-left ring-1 ring-slate-200/80 transition hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(15,23,42,0.08)] hover:ring-slate-300"
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-600">
+              Buy
             </p>
-            <h2 className="mt-3 text-2xl font-bold text-slate-900 md:text-3xl">
-              Request to buy or sell your car
-            </h2>
-            <p className="mt-2 max-w-2xl text-sm text-slate-600">
-              Fill one short form — your details go straight to our admin team. We will get back to you
-              with the next steps.
+            <h3 className="mt-2 text-xl font-semibold tracking-tight text-blue-800">
+              Request to buy
+            </h3>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">
+              Tell us the car you want. We will check stock, price, and call you back.
             </p>
-
-            <div className="mt-6 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => handleLeadTabChange("buy")}
-                className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                  leadTab === "buy"
-                    ? "border-emerald-600 bg-emerald-600 text-white shadow-md shadow-emerald-200/70"
-                    : "border-emerald-200 bg-white/90 text-slate-700 hover:border-emerald-300"
-                }`}
-              >
-                <span aria-hidden>🛒</span> Request to buy
-              </button>
-              <button
-                type="button"
-                onClick={() => handleLeadTabChange("sell")}
-                className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                  leadTab === "sell"
-                    ? "border-teal-600 bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-md shadow-teal-200/60"
-                    : "border-emerald-200 bg-white/90 text-slate-700 hover:border-emerald-300"
-                }`}
-              >
-                <span aria-hidden>🚗</span> Sell your car
-              </button>
-            </div>
-
-            {leadMessage ? (
-              <p className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/90 px-4 py-3 text-sm font-medium text-emerald-900">
-                {leadMessage}
-              </p>
-            ) : null}
-            {leadError ? (
-              <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-                {leadError}
-              </p>
-            ) : null}
-
-            <div className="mt-6 rounded-2xl border border-white/80 bg-white/70 p-5 shadow-inner shadow-emerald-100/40 backdrop-blur-sm md:p-6">
-              {leadTab === "buy" ? (
-                <form onSubmit={handleBuyLeadSubmit} className="grid gap-4 md:grid-cols-2">
-                  <div className="md:col-span-2">
-                    <label className="mb-1 block text-sm font-medium text-slate-700">
-                      Full name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      required
-                      type="text"
-                      value={buyLead.name}
-                      onChange={(e) =>
-                        setBuyLead((p) => ({ ...p, name: e.target.value }))
-                      }
-                      placeholder="Your name"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none ring-emerald-500/20 transition focus:border-emerald-500 focus:ring-2"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">
-                      Email <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      required
-                      type="email"
-                      value={buyLead.email}
-                      onChange={(e) =>
-                        setBuyLead((p) => ({ ...p, email: e.target.value }))
-                      }
-                      placeholder="you@email.com"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">
-                      Phone <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      required
-                      type="tel"
-                      value={buyLead.phone}
-                      onChange={(e) =>
-                        setBuyLead((p) => ({ ...p, phone: e.target.value }))
-                      }
-                      placeholder="+91 ..."
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="mb-1 block text-sm font-medium text-slate-700">
-                      Car you are looking for <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      required
-                      type="text"
-                      value={buyLead.carName}
-                      onChange={(e) =>
-                        setBuyLead((p) => ({ ...p, carName: e.target.value }))
-                      }
-                      placeholder="e.g. Honda City VX 2020"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-                    />
-                  </div>
-                  <div className="md:col-span-2 flex flex-wrap items-center gap-3 pt-1">
-                    <button
-                      type="submit"
-                      disabled={leadSubmitting}
-                      className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-emerald-200/60 transition hover:from-emerald-700 hover:to-teal-700 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <span aria-hidden>🙏</span>
-                      {leadSubmitting ? "Sending…" : "Submit buy request"}
-                    </button>
-                    <p className="text-xs text-slate-500">
-                      <span aria-hidden>✨</span> We respect your privacy — no spam.
-                    </p>
-                  </div>
-                </form>
-              ) : (
-                <form onSubmit={handleSellLeadSubmit} className="grid gap-4 md:grid-cols-2">
-                  <div className="md:col-span-2">
-                    <label className="mb-1 block text-sm font-medium text-slate-700">
-                      Full name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      required
-                      type="text"
-                      value={sellLead.name}
-                      onChange={(e) =>
-                        setSellLead((p) => ({ ...p, name: e.target.value }))
-                      }
-                      placeholder="Your name"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">
-                      Email <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      required
-                      type="email"
-                      value={sellLead.email}
-                      onChange={(e) =>
-                        setSellLead((p) => ({ ...p, email: e.target.value }))
-                      }
-                      placeholder="you@email.com"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">
-                      Phone <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      required
-                      type="tel"
-                      value={sellLead.phone}
-                      onChange={(e) =>
-                        setSellLead((p) => ({ ...p, phone: e.target.value }))
-                      }
-                      placeholder="+91 ..."
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="mb-1 block text-sm font-medium text-slate-700">
-                      Car make & model <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      required
-                      type="text"
-                      value={sellLead.carMakeModel}
-                      onChange={(e) =>
-                        setSellLead((p) => ({ ...p, carMakeModel: e.target.value }))
-                      }
-                      placeholder="e.g. Maruti Swift VXI"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">
-                      Year (optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={sellLead.year}
-                      onChange={(e) =>
-                        setSellLead((p) => ({ ...p, year: e.target.value }))
-                      }
-                      placeholder="e.g. 2019"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">
-                      Expected price (optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={sellLead.expectedPrice}
-                      onChange={(e) =>
-                        setSellLead((p) => ({ ...p, expectedPrice: e.target.value }))
-                      }
-                      placeholder="e.g. 5,50,000"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="mb-1 block text-sm font-medium text-slate-700">
-                      Notes (optional)
-                    </label>
-                    <textarea
-                      rows={3}
-                      value={sellLead.notes}
-                      onChange={(e) =>
-                        setSellLead((p) => ({ ...p, notes: e.target.value }))
-                      }
-                      placeholder="Condition, mileage, city…"
-                      className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
-                    />
-                  </div>
-                  <div className="md:col-span-2 flex flex-wrap items-center gap-3 pt-1">
-                    <button
-                      type="submit"
-                      disabled={leadSubmitting}
-                      className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-teal-600 to-emerald-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-teal-200/50 transition hover:from-teal-700 hover:to-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <span aria-hidden>🙏</span>
-                      {leadSubmitting ? "Sending…" : "Submit sell details"}
-                    </button>
-                    <p className="text-xs text-slate-500">
-                      <span aria-hidden>📋</span> Our team reviews every listing personally.
-                    </p>
-                  </div>
-                </form>
-              )}
-            </div>
-          </div>
+            <span className="mt-5 inline-flex rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition group-hover:bg-blue-700">
+              Open buy form
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleLeadTabChange("sell")}
+            className="group rounded-2xl bg-slate-900 p-6 text-left text-white ring-1 ring-slate-900 transition hover:-translate-y-0.5 hover:bg-black hover:shadow-[0_16px_36px_rgba(15,23,42,0.18)]"
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
+              Sell
+            </p>
+            <h3 className="mt-2 text-xl font-semibold tracking-tight">
+              Sell your car
+            </h3>
+            <p className="mt-2 text-sm leading-relaxed text-slate-300">
+              Share make, model, and a few details. We review every listing ourselves.
+            </p>
+            <span className="mt-5 inline-flex rounded-full bg-white px-5 py-2 text-sm font-semibold text-slate-900 transition group-hover:bg-slate-100">
+              Open sell form
+            </span>
+          </button>
         </div>
       </motion.section>
+
+      {recentHappyClients.length > 0 ? (
+        <motion.section
+          {...fadeUp}
+          className="mx-auto max-w-6xl px-4 pb-16"
+          aria-labelledby="home-happy-customers-heading"
+        >
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                Happy customers
+              </p>
+              <h2
+                id="home-happy-customers-heading"
+                className="mt-2 text-2xl font-semibold tracking-tight text-blue-800 sm:text-3xl"
+              >
+                Recent deliveries
+              </h2>
+              <p className="mt-2 max-w-xl text-sm text-slate-600">
+                Photos from people who bought with us recently.
+              </p>
+            </div>
+            <a
+              href="/happy-clients"
+              className="inline-flex shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
+            >
+              View all
+            </a>
+          </div>
+          <div className="mt-8 grid gap-4 md:grid-cols-3">
+            {recentHappyClients.map((c) => (
+              <article
+                key={c._id}
+                className="flex flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200/80"
+              >
+                <div className="flex min-h-[220px] items-center justify-center bg-slate-100 px-2 py-3">
+                  {c.imagePath ? (
+                    <img
+                      src={resolveCarImageUrl(c.imagePath, getApiUrl())}
+                      alt={c.name ? `${c.name} — happy customer` : "Happy customer"}
+                      className="mx-auto h-auto max-h-[280px] w-auto max-w-full object-contain"
+                    />
+                  ) : (
+                    <p className="py-12 text-sm text-slate-500">Photo coming soon</p>
+                  )}
+                </div>
+                <div className="flex flex-1 flex-col px-4 py-4">
+                  <p className="text-lg font-semibold tracking-tight text-blue-800">
+                    {c.name}
+                  </p>
+                  {c.text ? (
+                    <p className="mt-2 text-sm leading-relaxed text-slate-600 line-clamp-4">
+                      {c.text}
+                    </p>
+                  ) : null}
+                </div>
+              </article>
+            ))}
+          </div>
+        </motion.section>
+      ) : null}
+
+      <AnimatePresence>
+        {isLeadModalOpen ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4"
+          >
+            <button
+              type="button"
+              aria-label="Close form backdrop"
+              onClick={() => setIsLeadModalOpen(false)}
+              className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.98 }}
+              transition={{ duration: 0.22 }}
+              className="relative z-10 max-h-[min(92dvh,880px)] w-full max-w-xl overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl"
+            >
+              <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-4 py-4 sm:px-5">
+                <div>
+                  <h3 className="text-lg font-semibold text-blue-800">
+                    {leadTab === "buy" ? "Request to buy" : "Sell your car"}
+                  </h3>
+                  <p className="mt-0.5 text-sm text-slate-500">
+                    {leadTab === "buy"
+                      ? "Tell us what you are looking for. We will call you back."
+                      : "Share a few details about your car. We will contact you shortly."}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsLeadModalOpen(false)}
+                  className="shrink-0 rounded-full border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="px-4 pt-4 sm:px-5">
+                <div className="flex gap-2 rounded-full bg-slate-100 p-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLeadTab("buy");
+                      setLeadMessage("");
+                      setLeadError("");
+                    }}
+                    className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold transition ${
+                      leadTab === "buy"
+                        ? "bg-white text-slate-900 shadow-sm"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    Buy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLeadTab("sell");
+                      setLeadMessage("");
+                      setLeadError("");
+                    }}
+                    className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold transition ${
+                      leadTab === "sell"
+                        ? "bg-white text-slate-900 shadow-sm"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    Sell
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-5">
+                {leadMessage ? (
+                  <p className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900">
+                    {leadMessage}
+                  </p>
+                ) : null}
+                {leadError ? (
+                  <p className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                    {leadError}
+                  </p>
+                ) : null}
+
+                {leadTab === "buy" ? (
+                  <form onSubmit={handleBuyLeadSubmit} className="grid gap-4 md:grid-cols-2">
+                    <div className="md:col-span-2">
+                      <label className="mb-1 block text-sm font-medium text-slate-700">
+                        Full name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        required
+                        type="text"
+                        value={buyLead.name}
+                        onChange={(e) =>
+                          setBuyLead((p) => ({ ...p, name: e.target.value }))
+                        }
+                        placeholder="Your name"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700">
+                        Email <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        required
+                        type="email"
+                        value={buyLead.email}
+                        onChange={(e) =>
+                          setBuyLead((p) => ({ ...p, email: e.target.value }))
+                        }
+                        placeholder="you@email.com"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700">
+                        Phone <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        required
+                        type="tel"
+                        value={buyLead.phone}
+                        onChange={(e) =>
+                          setBuyLead((p) => ({ ...p, phone: e.target.value }))
+                        }
+                        placeholder="+91 ..."
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="mb-1 block text-sm font-medium text-slate-700">
+                        Car you are looking for <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        required
+                        type="text"
+                        value={buyLead.carName}
+                        onChange={(e) =>
+                          setBuyLead((p) => ({ ...p, carName: e.target.value }))
+                        }
+                        placeholder="e.g. Honda City VX 2020"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
+                      />
+                    </div>
+                    <div className="md:col-span-2 flex flex-wrap items-center gap-3 pt-1">
+                      <button
+                        type="submit"
+                        disabled={leadSubmitting}
+                        className="inline-flex items-center rounded-full bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {leadSubmitting ? "Sending…" : "Submit buy request"}
+                      </button>
+                      <p className="text-xs text-slate-500">We respect your privacy — no spam.</p>
+                    </div>
+                  </form>
+                ) : (
+                  <form onSubmit={handleSellLeadSubmit} className="grid gap-4 md:grid-cols-2">
+                    <div className="md:col-span-2">
+                      <label className="mb-1 block text-sm font-medium text-slate-700">
+                        Full name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        required
+                        type="text"
+                        value={sellLead.name}
+                        onChange={(e) =>
+                          setSellLead((p) => ({ ...p, name: e.target.value }))
+                        }
+                        placeholder="Your name"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700">
+                        Email <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        required
+                        type="email"
+                        value={sellLead.email}
+                        onChange={(e) =>
+                          setSellLead((p) => ({ ...p, email: e.target.value }))
+                        }
+                        placeholder="you@email.com"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700">
+                        Phone <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        required
+                        type="tel"
+                        value={sellLead.phone}
+                        onChange={(e) =>
+                          setSellLead((p) => ({ ...p, phone: e.target.value }))
+                        }
+                        placeholder="+91 ..."
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="mb-1 block text-sm font-medium text-slate-700">
+                        Car make & model <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        required
+                        type="text"
+                        value={sellLead.carMakeModel}
+                        onChange={(e) =>
+                          setSellLead((p) => ({ ...p, carMakeModel: e.target.value }))
+                        }
+                        placeholder="e.g. Maruti Swift VXI"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700">
+                        Year (optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={sellLead.year}
+                        onChange={(e) =>
+                          setSellLead((p) => ({ ...p, year: e.target.value }))
+                        }
+                        placeholder="e.g. 2019"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700">
+                        Expected price (optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={sellLead.expectedPrice}
+                        onChange={(e) =>
+                          setSellLead((p) => ({ ...p, expectedPrice: e.target.value }))
+                        }
+                        placeholder="e.g. 5,50,000"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="mb-1 block text-sm font-medium text-slate-700">
+                        Notes (optional)
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={sellLead.notes}
+                        onChange={(e) =>
+                          setSellLead((p) => ({ ...p, notes: e.target.value }))
+                        }
+                        placeholder="Condition, mileage, city…"
+                        className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
+                      />
+                    </div>
+                    <div className="md:col-span-2 flex flex-wrap items-center gap-3 pt-1">
+                      <button
+                        type="submit"
+                        disabled={leadSubmitting}
+                        className="inline-flex items-center rounded-full bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {leadSubmitting ? "Sending…" : "Submit sell details"}
+                      </button>
+                      <p className="text-xs text-slate-500">
+                        Our team reviews every listing personally.
+                      </p>
+                    </div>
+                  </form>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       <AnimatePresence>
         {isFormOpen ? (
@@ -1361,7 +1379,7 @@ export default function HomePage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4"
           >
             <button
               type="button"
@@ -1375,12 +1393,12 @@ export default function HomePage() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 12, scale: 0.98 }}
               transition={{ duration: 0.22 }}
-              className="relative z-10 w-full max-w-2xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
+              className="relative z-10 max-h-[min(92dvh,880px)] w-full max-w-2xl overflow-y-auto rounded-t-2xl border border-slate-200 bg-white shadow-2xl sm:rounded-3xl"
             >
-            <div className="border-b border-slate-200 bg-slate-50 px-6 py-5">
+            <div className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 px-4 py-4 sm:px-6 sm:py-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h3 className="text-xl font-semibold text-slate-900">
+                  <h3 className="text-xl font-semibold text-blue-800">
                     Book your test drive
                   </h3>
                   <p className="mt-1 text-sm text-slate-600">
@@ -1390,7 +1408,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               <div className="mb-5 flex justify-end">
               <button
                 type="button"
@@ -1481,7 +1499,7 @@ export default function HomePage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4"
           >
             <button
               type="button"
@@ -1494,15 +1512,15 @@ export default function HomePage() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 12, scale: 0.98 }}
               transition={{ duration: 0.22 }}
-              className="relative z-10 w-full max-w-lg overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
+              className="relative z-10 max-h-[min(92dvh,880px)] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-slate-200 bg-white shadow-2xl sm:rounded-3xl"
             >
-              <div className="border-b border-slate-200 bg-slate-50 px-6 py-5">
-                <h3 className="text-xl font-semibold text-slate-900">Write a review</h3>
+              <div className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 px-4 py-4 sm:px-6 sm:py-5">
+                <h3 className="text-xl font-semibold text-blue-800">Write a review</h3>
                 <p className="mt-1 text-sm text-slate-600">
                   Share your experience with other buyers.
                 </p>
               </div>
-              <div className="p-6">
+              <div className="p-4 sm:p-6">
                 <div className="mb-5 flex justify-end">
                   <button
                     type="button"
@@ -1585,23 +1603,23 @@ export default function HomePage() {
         initial={{ opacity: 0, x: 28 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ delay: 0.6, duration: 0.45, ease: "easeOut" }}
-        className={`fixed bottom-6 right-4 z-40 flex flex-col gap-3 md:bottom-8 md:right-6 ${
-          isFormOpen || isReviewModalOpen ? "hidden" : ""
+        className={`fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-3 z-40 flex flex-col gap-2.5 md:bottom-8 md:right-6 ${
+          isFormOpen || isReviewModalOpen || isLeadModalOpen ? "hidden" : ""
         }`}
-        aria-hidden={isFormOpen || isReviewModalOpen}
+        aria-hidden={isFormOpen || isReviewModalOpen || isLeadModalOpen}
       >
         <a
           href={WHATSAPP_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-xl shadow-emerald-900/35 ring-2 ring-white/40 transition hover:scale-105 hover:bg-[#20bd5a] hover:shadow-2xl"
+          className="flex h-12 w-12 items-center justify-center rounded-full bg-[#25D366] text-white shadow-xl shadow-emerald-900/35 ring-2 ring-white/40 transition hover:scale-105 hover:bg-[#20bd5a] hover:shadow-2xl md:h-14 md:w-14"
           aria-label="Chat on WhatsApp"
         >
           <WhatsAppGlyph className="h-7 w-7" />
         </a>
         <a
           href={TEL_HREF}
-          className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-slate-900 to-slate-800 text-cyan-200 shadow-xl shadow-slate-900/40 ring-2 ring-white/30 transition hover:scale-105 hover:from-slate-800 hover:to-slate-700 hover:shadow-2xl"
+          className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-slate-900 to-slate-800 text-cyan-200 shadow-xl shadow-slate-900/40 ring-2 ring-white/30 transition hover:scale-105 hover:from-slate-800 hover:to-slate-700 hover:shadow-2xl md:h-14 md:w-14"
           aria-label={`Call ${CONTACT_PHONE_DISPLAY}`}
         >
           <PhoneGlyph className="h-6 w-6" />

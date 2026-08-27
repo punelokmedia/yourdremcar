@@ -18,8 +18,7 @@ export default function SiteChrome({ children }) {
   }
 
   return (
-    <div className="relative min-h-[100dvh] overflow-x-clip overflow-y-visible">
-      <div className="pointer-events-none absolute left-1/2 top-0 hidden h-96 w-96 -translate-x-1/2 rounded-full bg-slate-200/70 blur-3xl sm:block" />
+    <div className="relative min-h-[100dvh] overflow-x-clip overflow-y-visible bg-[#f4f6f8]">
       <Navbar />
       {children}
       <Footer />

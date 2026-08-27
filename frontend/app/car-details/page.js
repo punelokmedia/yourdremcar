@@ -58,7 +58,7 @@ export default async function CarDetailsPage({ searchParams }) {
   ];
 
   return (
-    <main className="bg-white">
+    <main className="bg-[#f4f6f8]">
       <section className="border-b border-slate-200 bg-gradient-to-b from-slate-50 to-white">
         <div className="mx-auto max-w-6xl px-4 pt-6 pb-8 sm:px-6 sm:pt-8 sm:pb-10 lg:pt-6 lg:pb-12">
           <div className="grid items-start gap-6 lg:grid-cols-12 lg:gap-8 xl:gap-10">
@@ -70,7 +70,7 @@ export default async function CarDetailsPage({ searchParams }) {
               >
                 <a
                   href="/inventory"
-                  className="font-medium text-blue-700 transition hover:text-blue-800 hover:underline"
+                  className="font-medium text-slate-700 transition hover:text-slate-900 hover:underline"
                 >
                   Inventory
                 </a>
@@ -80,10 +80,10 @@ export default async function CarDetailsPage({ searchParams }) {
                 <span className="font-medium text-slate-700">Details</span>
               </nav>
 
-              <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.2em] text-blue-700 sm:mt-5">
+              <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500 sm:mt-5">
                 Car details
               </p>
-              <h1 className="mt-2 max-w-xl text-xl font-bold leading-snug tracking-tight text-slate-900 sm:text-2xl lg:text-2xl xl:max-w-2xl xl:text-3xl xl:leading-tight">
+              <h1 className="mt-2 max-w-xl text-xl font-bold leading-snug tracking-tight text-blue-800 sm:text-2xl lg:text-2xl xl:max-w-2xl xl:text-3xl xl:leading-tight">
                 {name}
               </h1>
 
@@ -136,7 +136,7 @@ export default async function CarDetailsPage({ searchParams }) {
         <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
           <div className="space-y-6">
             <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
-              <h2 className="text-2xl font-bold text-slate-900">Vehicle Overview</h2>
+              <h2 className="text-2xl font-bold text-blue-800">Vehicle Overview</h2>
               <p className="mt-3 max-w-3xl text-slate-600">{note}</p>
 
               <div className="mt-5 flex flex-wrap gap-2">
@@ -170,7 +170,7 @@ export default async function CarDetailsPage({ searchParams }) {
             <p className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-700">
               Quick Actions
             </p>
-            <h3 className="mt-2 text-2xl font-bold text-slate-900">{name}</h3>
+            <h3 className="mt-2 text-2xl font-bold text-blue-800">{name}</h3>
             <p className="mt-1 text-slate-600">{year} Model</p>
             <p className="mt-3 text-3xl font-bold text-slate-900">{price}</p>
 

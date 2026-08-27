@@ -1,20 +1,25 @@
 @import "tailwindcss";
 
-/* Single page scrollbar: do not set overflow-y on body (that + html height caused double scrollbars). */
 html {
   overflow-x: clip;
   -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
 }
 
 body {
   min-height: 100dvh;
   overflow-x: clip;
-  background-color: #ffffff;
+  background-color: #f4f6f8;
   color: #0f172a;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   touch-action: pan-y pinch-zoom;
   -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background-color: #0f172a;
+  color: #ffffff;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -33,7 +38,8 @@ textarea {
 input:focus,
 textarea:focus {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(100, 116, 139, 0.35);
+  border-color: #94a3b8;
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.08);
 }
 
 input::placeholder,
@@ -52,4 +58,30 @@ textarea::placeholder {
 
 .slider-scroll {
   scroll-behavior: smooth;
+}
+
+@keyframes hero-cards-scroll {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-50%);
+  }
+}
+
+.hero-cards-track {
+  animation-name: hero-cards-scroll;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+
+.hero-cards-window:hover .hero-cards-track {
+  animation-play-state: paused;
+}
+
+@media (hover: none) {
+  .hero-cards-window:hover .hero-cards-track {
+    animation-play-state: running;
+  }
 }
