@@ -255,10 +255,10 @@ export default function CookieConsentBanner() {
               </button>
               . Read more in our{" "}
               <Link
-                href="/contact-us"
+                href="/privacy"
                 className="font-semibold text-blue-700 underline decoration-blue-700/30 underline-offset-2 hover:text-blue-800"
               >
-                contact &amp; privacy notice
+                Privacy Policy
               </Link>
               .
             </p>

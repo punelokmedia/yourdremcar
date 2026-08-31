@@ -21,6 +21,7 @@ const companyLinks = [
   { label: "Home", href: "/" },
   { label: "About us", href: "/about-us" },
   { label: "Contact", href: "/contact-us" },
+  { label: "Privacy Policy", href: "/privacy" },
 ];
 
 export default function Footer() {
@@ -112,9 +113,17 @@ export default function Footer() {
       </div>
 
       <div className="border-t border-white/10">
-        <p className="mx-auto max-w-6xl px-4 py-3.5 text-xs text-slate-500">
-          © {new Date().getFullYear()} Your Dream Cars. All rights reserved.
-        </p>
+        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-slate-500">
+            © {new Date().getFullYear()} Your Dream Cars. All rights reserved.
+          </p>
+          <Link
+            href="/privacy"
+            className="text-xs font-medium text-slate-400 transition hover:text-white"
+          >
+            Privacy Policy
+          </Link>
+        </div>
       </div>
     </footer>
   );
