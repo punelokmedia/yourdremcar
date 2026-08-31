@@ -11,6 +11,8 @@ import {
 } from "../lib/contactInfo";
 import { CAR_SELLS_COOKIE_OPEN_EVENT } from "./CookieConsentBanner";
 
+const SUPPORT_EMAIL = "yourdreamcars1806@gmail.com";
+
 const exploreLinks = [
   { label: "Inventory", href: "/inventory" },
   { label: "Gallery", href: "/gallery" },
@@ -21,13 +23,22 @@ const companyLinks = [
   { label: "Home", href: "/" },
   { label: "About us", href: "/about-us" },
   { label: "Contact", href: "/contact-us" },
+];
+
+const legalLinks = [
   { label: "Privacy Policy", href: "/privacy" },
+  { label: "Delete Account", href: "/delete-account" },
+  {
+    label: "Contact",
+    href: `mailto:${SUPPORT_EMAIL}`,
+    external: true,
+  },
 ];
 
 export default function Footer() {
   return (
     <footer id="footer" className="mt-10 bg-[#0b1220] text-slate-400 sm:mt-14">
-      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-8 sm:grid-cols-2 sm:py-10 lg:grid-cols-4">
+      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-8 sm:grid-cols-2 sm:py-10 lg:grid-cols-5">
         <div className="sm:col-span-2 lg:col-span-1">
           <div className="flex items-center gap-3">
             <span className="inline-flex h-11 w-11 overflow-hidden rounded-full bg-white/5 ring-1 ring-white/10">
@@ -91,6 +102,27 @@ export default function Footer() {
 
         <div>
           <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-white">
+            Legal
+          </h3>
+          <ul className="mt-3 space-y-2 text-sm">
+            {legalLinks.map((link) => (
+              <li key={link.label}>
+                {link.external ? (
+                  <a href={link.href} className="transition hover:text-white">
+                    {link.label}
+                  </a>
+                ) : (
+                  <Link href={link.href} className="transition hover:text-white">
+                    {link.label}
+                  </Link>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div>
+          <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-white">
             Contact
           </h3>
           <p className="mt-3 text-sm leading-relaxed">{BUSINESS_ADDRESS}</p>
@@ -117,12 +149,20 @@ export default function Footer() {
           <p className="text-xs text-slate-500">
             © {new Date().getFullYear()} Your Dream Cars. All rights reserved.
           </p>
-          <Link
-            href="/privacy"
-            className="text-xs font-medium text-slate-400 transition hover:text-white"
-          >
-            Privacy Policy
-          </Link>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+            <Link
+              href="/privacy"
+              className="font-medium text-slate-400 transition hover:text-white"
+            >
+              Privacy Policy
+            </Link>
+            <Link
+              href="/delete-account"
+              className="font-medium text-slate-400 transition hover:text-white"
+            >
+              Delete Account
+            </Link>
+          </div>
         </div>
       </div>
     </footer>
