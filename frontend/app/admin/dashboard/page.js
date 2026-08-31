@@ -768,17 +768,50 @@ export default function AdminDashboardPage() {
           setHappyClientError("Please choose a photo from your device.");
           return;
         }
-        const formData = new FormData();
-        formData.append("name", happyClientForm.name.trim());
-        formData.append("text", happyClientForm.text.trim());
-        formData.append("image", happyClientForm.image);
+        if (
+          !isDirectCloudinaryUploadEnabled() &&
+          storageHealth?.vercel &&
+          !storageHealth.blob &&
+          !storageHealth.cloudinaryAuthOk
+        ) {
+          setHappyClientError(
+            "Photo upload on Vercel needs Cloudinary (NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME + NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET on the frontend) or BLOB_READ_WRITE_TOKEN on the backend. Redeploy after setting env, then try again."
+          );
+          return;
+        }
 
-        const response = await fetch(`${API_URL}/happy-clients`, {
-          method: "POST",
-          body: formData,
-          cache: "no-store",
-        });
-        const data = await response.json();
+        let response;
+        if (isDirectCloudinaryUploadEnabled()) {
+          const uploaded = await uploadCarImageClientSide(happyClientForm.image, {
+            folder: "car-sells/happy-clients",
+          });
+          response = await fetch(`${API_URL}/happy-clients`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            cache: "no-store",
+            body: JSON.stringify({
+              name: happyClientForm.name.trim(),
+              text: happyClientForm.text.trim(),
+              imagePath: uploaded.secure_url,
+            }),
+          });
+        } else {
+          const formData = new FormData();
+          formData.append("name", happyClientForm.name.trim());
+          formData.append("text", happyClientForm.text.trim());
+          formData.append("image", happyClientForm.image);
+
+          response = await fetch(`${API_URL}/happy-clients`, {
+            method: "POST",
+            body: formData,
+            cache: "no-store",
+          });
+        }
+
+        const data = await response.json().catch(() => ({}));
         if (!response.ok) {
           throw new Error(data.message || "Failed to add happy customer");
         }
@@ -787,14 +820,21 @@ export default function AdminDashboardPage() {
         setHappyClientForm({ name: "", text: "", image: null });
         setHappyClientFileKey((k) => k + 1);
         setHappyClientMessage(
-          "Happy customer added. Photo is stored in public/images/happy-clients on the server."
+          isDirectCloudinaryUploadEnabled()
+            ? "Happy customer added. Photo uploaded to Cloudinary."
+            : "Happy customer added."
         );
       }
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("happy-clients-changed"));
       }
     } catch (error) {
-      setHappyClientError(error.message || "Failed to add happy customer");
+      const raw = error?.message || "Failed to add happy customer";
+      setHappyClientError(
+        raw === "Failed to fetch"
+          ? "Could not reach the API (network/CORS). Confirm the backend is online and NEXT_PUBLIC_API_URL points to …/api, then try a smaller JPG under 4 MB."
+          : raw
+      );
     } finally {
       setHappyClientSubmitting(false);
     }
@@ -1169,15 +1209,9 @@ export default function AdminDashboardPage() {
                   <p className="mt-1 text-sm text-slate-600">
                     {editingHappyClientId
                       ? "Update name and quote. To change photo, delete and add again."
-                      : "Upload a photo from your device. Files are saved in "}
-                    {!editingHappyClientId ? (
-                      <>
-                        <code className="rounded bg-slate-100 px-1 text-xs">
-                          frontend/public/images/happy-clients
-                        </code>{" "}
-                        (not Cloudinary).
-                      </>
-                    ) : null}
+                      : isDirectCloudinaryUploadEnabled()
+                        ? "Upload a photo from your device. On production it goes to Cloudinary (same as car images)."
+                        : "Upload a photo from your device. Locally it saves under public/images/happy-clients; on Vercel use Cloudinary or Blob."}
                   </p>
                 </div>
 

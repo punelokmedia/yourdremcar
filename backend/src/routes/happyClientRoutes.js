@@ -24,7 +24,16 @@ const upload = multer({
 });
 
 router.get("/", getHappyClients);
-router.post("/", upload.single("image"), createHappyClient);
+router.post("/", (req, res, next) => {
+  const contentType = req.headers["content-type"] || "";
+  if (contentType.includes("multipart/form-data")) {
+    return upload.single("image")(req, res, (err) => {
+      if (err) return next(err);
+      return createHappyClient(req, res, next);
+    });
+  }
+  return createHappyClient(req, res, next);
+});
 router.patch("/:id", updateHappyClient);
 router.delete("/:id", deleteHappyClient);
 

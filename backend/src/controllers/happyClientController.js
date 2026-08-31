@@ -72,15 +72,10 @@ export const getHappyClients = async (_req, res, next) => {
 
 export const createHappyClient = async (req, res, next) => {
   try {
-    if (!req.file?.buffer) {
-      return res.status(400).json({
-        success: false,
-        message: "Please choose an image (JPG, PNG, WebP, or GIF).",
-      });
-    }
-
     const name = typeof req.body.name === "string" ? req.body.name.trim() : "";
     const text = typeof req.body.text === "string" ? req.body.text.trim() : "";
+    const remoteImagePath =
+      typeof req.body.imagePath === "string" ? req.body.imagePath.trim() : "";
 
     if (!name || name.length < 2) {
       return res.status(400).json({
@@ -96,28 +91,39 @@ export const createHappyClient = async (req, res, next) => {
       });
     }
 
-    const buffer = req.file.buffer;
-    const originalName = req.file.originalname || "photo.jpg";
     let imagePath;
 
-    if (isBlobConfigured()) {
-      imagePath = await uploadBufferToVercelBlob(buffer, originalName);
-    } else if (isServerlessReadOnlyFs()) {
-      return res.status(503).json({
-        success: false,
-        message:
-          "This server cannot write to disk. Add BLOB_READ_WRITE_TOKEN to your backend (Vercel → Storage → Blob), redeploy, then upload again.",
-      });
+    // Prefer browser → Cloudinary/Blob URL (JSON), then multipart file upload.
+    if (/^https?:\/\//i.test(remoteImagePath)) {
+      imagePath = remoteImagePath;
+    } else if (req.file?.buffer) {
+      const buffer = req.file.buffer;
+      const originalName = req.file.originalname || "photo.jpg";
+
+      if (isBlobConfigured()) {
+        imagePath = await uploadBufferToVercelBlob(buffer, originalName);
+      } else if (isServerlessReadOnlyFs()) {
+        return res.status(503).json({
+          success: false,
+          message:
+            "This server cannot write to disk. Upload via Cloudinary (set NEXT_PUBLIC_CLOUDINARY_* on the frontend) or add BLOB_READ_WRITE_TOKEN on the backend, redeploy, then try again.",
+        });
+      } else {
+        const ext = path.extname(originalName).toLowerCase() || ".jpg";
+        const allowed = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
+        const safeExt = allowed.includes(ext) ? ext : ".jpg";
+        const fileName = `${Date.now()}-${randomUUID().slice(0, 8)}${safeExt}`;
+        const dir = getHappyClientsUploadDir();
+        await fs.mkdir(dir, { recursive: true });
+        const filePath = path.join(dir, fileName);
+        await fs.writeFile(filePath, buffer);
+        imagePath = `/images/happy-clients/${fileName}`;
+      }
     } else {
-      const ext = path.extname(originalName).toLowerCase() || ".jpg";
-      const allowed = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
-      const safeExt = allowed.includes(ext) ? ext : ".jpg";
-      const fileName = `${Date.now()}-${randomUUID().slice(0, 8)}${safeExt}`;
-      const dir = getHappyClientsUploadDir();
-      await fs.mkdir(dir, { recursive: true });
-      const filePath = path.join(dir, fileName);
-      await fs.writeFile(filePath, buffer);
-      imagePath = `/images/happy-clients/${fileName}`;
+      return res.status(400).json({
+        success: false,
+        message: "Please choose an image (JPG, PNG, WebP, or GIF).",
+      });
     }
 
     const doc = await HappyClient.create({ name, text, imagePath });

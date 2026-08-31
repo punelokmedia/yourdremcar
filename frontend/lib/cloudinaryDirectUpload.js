@@ -9,18 +9,21 @@ export function isDirectCloudinaryUploadEnabled() {
 }
 
 /**
- * @returns {{ secure_url: string, public_id: string }}
+ * @param {File} file
+ * @param {{ folder?: string }} [options]
+ * @returns {Promise<{ secure_url: string, public_id: string }>}
  */
-export async function uploadCarImageClientSide(file) {
+export async function uploadCarImageClientSide(file, options = {}) {
   const cloud = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME?.trim();
   const preset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET?.trim();
   if (!file || !cloud || !preset) {
     throw new Error("Cloudinary direct upload is not configured");
   }
+  const folder = options.folder?.trim() || "car-sells";
   const fd = new FormData();
   fd.append("file", file);
   fd.append("upload_preset", preset);
-  fd.append("folder", "car-sells");
+  fd.append("folder", folder);
   const res = await fetch(
     `https://api.cloudinary.com/v1_1/${encodeURIComponent(cloud)}/image/upload`,
     { method: "POST", body: fd }
